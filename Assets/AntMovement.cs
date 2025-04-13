@@ -1,36 +1,32 @@
 using UnityEngine;
 
+[RequireComponent(typeof(Rigidbody2D))] // Rigidbody2D가 필수임을 명시 (코드 수정)
 public class AntMovement : MonoBehaviour
 {
     public float speed = 1.0f;
     public int damage = 10;
     private Transform targetHouse;
-    private Rigidbody2D rb; // Rigidbody2D 참조 변수 추가
+    private Rigidbody2D rb;
 
     void Start()
     {
-        // Rigidbody2D 컴포넌트 가져오기
         rb = GetComponent<Rigidbody2D>();
         if (rb == null)
         {
             Debug.LogError("AntMovement requires a Rigidbody2D component!", gameObject);
-        }
-        // Body Type이 Dynamic인지 확인 (권장)
-        if (rb != null && rb.bodyType != RigidbodyType2D.Dynamic)
-        {
-             Debug.LogWarning("Ant's Rigidbody2D Body Type is not Dynamic. Collision events might be less reliable. Setting Gravity Scale to 0.", gameObject);
-             rb.gravityScale = 0; // Kinematic이라도 중력은 0으로
-        }
-        else if (rb != null) {
-            rb.gravityScale = 0; // Dynamic일 때도 중력 0으로 확실히 설정
+            enabled = false; // Rigidbody 없으면 스크립트 비활성화 (코드 수정)
+            return;
         }
 
+        // 중력 영향 안 받도록 설정 및 회전 고정 해제 (코드 수정)
+        rb.gravityScale = 0;
+        rb.freezeRotation = false; // 회전해야 하므로 false로 설정!
 
         GameObject houseObject = GameObject.FindGameObjectWithTag("House");
         if (houseObject != null)
         {
             targetHouse = houseObject.transform;
-            Debug.Log("개미: 목표 집 발견!");
+            // Debug.Log("개미: 목표 집 발견!"); // 필요시 주석 해제
         }
         else
         {
@@ -39,60 +35,62 @@ public class AntMovement : MonoBehaviour
         }
     }
 
-    // 물리 관련 로직은 FixedUpdate에서 처리하는 것이 좋음
+    [System.Obsolete]
     void FixedUpdate()
     {
-        // 목표(집)가 설정되어 있고 Rigidbody가 있다면 그쪽으로 이동
         if (targetHouse != null && rb != null)
         {
-            // 목표 방향 계산
+            // 목표 방향 계산 (현재 위치 기준)
             Vector2 direction = ((Vector2)targetHouse.position - rb.position).normalized;
 
-            // Rigidbody의 속도를 설정하여 이동 (물리 시스템에 더 친화적)
-            rb.linearVelocity = direction * speed;
+            // 이동 방향으로 개미 회전 (추가된 부분)
+            // 이동 방향 벡터가 0이 아닐 때만 (즉, 움직일 때만) 회전 적용
+            if (direction.sqrMagnitude > 0.01f) // magnitude 비교보다 sqrMagnitude 비교가 성능상 유리
+            {
+                // --- 아래 두 줄 중 사용하는 개미 스프라이트의 기본 방향에 맞는 것 하나만 주석 해제 ---
 
-            // (선택 사항) 이동 방향으로 개미 스프라이트 회전
-            // transform.right = direction; // 개미 스프라이트가 오른쪽을 보도록 설정되어 있다면
+                // 1. 만약 개미 스프라이트가 기본적으로 오른쪽을 보고 있다면:
+                transform.right = direction;
+
+                // 2. 만약 개미 스프라이트가 기본적으로 위쪽을 보고 있다면:
+                 //transform.up = direction; // (일반적인 TopDown 방식에서는 위쪽을 기준으로 할 때가 많음)
+
+                // 3. 각도를 직접 계산하여 적용하는 더 정밀한 방법 (위 방법이 어색할 경우 사용):
+                // float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+                // transform.rotation = Quaternion.Euler(0, 0, angle - 90); // 스프라이트가 위쪽 기준일 때 -90도 필요할 수 있음
+            }
+
+            // Rigidbody의 속도를 설정하여 이동
+            rb.velocity = direction * speed; // linearVelocity 대신 velocity 사용 (동일하게 작동)
         }
     }
 
-    void Update()
-    {
-        // Update에서는 더 이상 이동이나 거리 체크를 하지 않음
-    }
-
-    // ** 콜라이더(IsTrigger=OFF)가 다른 콜라이더와 처음 충돌했을 때 호출되는 함수 **
+    // OnCollisionEnter2D 및 ArrivedAtHouse 함수는 이전과 동일하게 유지
+    [System.Obsolete]
     void OnCollisionEnter2D(Collision2D collision)
     {
-        // 충돌한 상대방 게임 오브젝트의 태그가 "House"인지 확인
         if (collision.gameObject.CompareTag("House"))
         {
-            Debug.Log("Ant: OnCollisionEnter2D with House!", gameObject); // 충돌 로그 확인
-            ArrivedAtHouse(); // 집에 도착했으므로 처리 함수 호출
+            // Debug.Log("Ant: OnCollisionEnter2D with House!", gameObject);
+            ArrivedAtHouse();
         }
-        // (선택 사항) 식물과 충돌했을 때 멈추게 할 수도 있음
-        // else if (collision.gameObject.CompareTag("Plant")) // 식물 태그가 "Plant"라고 가정
-        // {
-        //     if (rb != null) rb.velocity = Vector2.zero; // 속도를 0으로 만들어 멈춤
-        // }
     }
 
-    // ArrivedAtHouse 함수는 거의 그대로 유지 (Rigidbody 속도 0으로 추가)
+    [System.Obsolete]
     void ArrivedAtHouse()
     {
-        Debug.Log("Ant: ArrivedAtHouse() CALLED!", gameObject); // 호출 확인 로그
+        // Debug.Log("Ant: ArrivedAtHouse() CALLED!", gameObject);
         HouseHealth houseHealth = targetHouse.GetComponent<HouseHealth>();
         if (houseHealth != null)
         {
             houseHealth.TakeDamage(damage);
         }
 
-        // 도착했으므로 더 이상 움직이지 않도록 속도를 0으로 설정
         if(rb != null)
         {
-            rb.linearVelocity = Vector2.zero;
+            rb.velocity = Vector2.zero; // velocity 사용 (코드 수정)
         }
 
-        Destroy(gameObject); // 개미 오브젝트 제거
+        Destroy(gameObject);
     }
 }

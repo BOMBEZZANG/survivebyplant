@@ -8,26 +8,28 @@ public class AntHealth : MonoBehaviour
 
     [Header("사망 시 드롭 아이템")]
     [Tooltip("죽을 때 떨어뜨릴 키틴 조각 프리팹")]
-    public GameObject chitinScrapPrefab; // Inspector에서 ChitinScrapPickup 프리팹 연결
-    [Tooltip("떨어뜨릴 최소 개수")]
-    public int minScrapDrop = 1;
-    [Tooltip("떨어뜨릴 최대 개수")]
-    public int maxScrapDrop = 1; // 일단 1개만 떨어뜨리도록 설정 (조절 가능)
+    public GameObject chitinScrapPrefab;
+
+    // ===>>> 수정: 확률 변수 추가 <<<===
+    [Range(0f, 1f)] // Inspector에서 슬라이더로 0~1 사이 값 조절 가능
+    [Tooltip("키틴 조각을 떨어뜨릴 확률 (0.0 = 0%, 0.5 = 50%, 1.0 = 100%)")]
+    public float dropChance = 1.0f; // 기본값 100% (기존과 동일하게 시작)
+
+    [Tooltip("확률 성공 시 떨어뜨릴 최소 개수")]
+    public int minScrapDrop = 1; // 확률 성공 시 최소 1개
+    [Tooltip("확률 성공 시 떨어뜨릴 최대 개수")]
+    public int maxScrapDrop = 1; // 확률 성공 시 최대 1개 (조절 가능)
 
     void Start()
     {
         currentHealth = maxHealth;
-        // Debug.Log($"Ant {gameObject.name} Initialized. Health: {currentHealth}"); // 필요시 주석 해제
     }
 
-    // 데미지를 받는 함수 (식물로부터 호출됨)
     public void TakeDamage(int damage)
     {
-        if (currentHealth <= 0) return; // 이미 죽었으면 무시
+        if (currentHealth <= 0) return;
 
         currentHealth -= damage;
-        // 데미지 로그는 PlayerInventory에서 확인하므로 여기선 생략 가능
-        // Debug.Log($"[{gameObject.name}] 개미가 {damage} 피해를 입음. 남은 체력: {currentHealth}/{maxHealth}", gameObject);
 
         if (currentHealth <= 0)
         {
@@ -35,34 +37,40 @@ public class AntHealth : MonoBehaviour
         }
     }
 
-    // 개미 죽음 처리
     void Die()
     {
-        // 사망 로그 (어떤 개미가 죽는지 확인)
-        Debug.LogError($"ANT {gameObject.name} IS DYING!", gameObject);
+        Debug.Log($"ANT {gameObject.name} IS DYING!", gameObject);
 
-        // ===>>> 추가: 아이템 드롭 로직 <<<===
+        // ===>>> 수정: 확률 체크 로직 추가 <<<===
         if (chitinScrapPrefab != null)
         {
-            // 떨어뜨릴 개수 랜덤 결정 (min ~ max 사이)
-            int dropAmount = Random.Range(minScrapDrop, maxScrapDrop + 1);
-            Debug.Log($"[{gameObject.name}] Dropping {dropAmount} Chitin Scrap(s).");
-
-            for (int i = 0; i < dropAmount; i++)
+            // 0.0 이상 1.0 미만의 랜덤 소수 생성하여 dropChance와 비교
+            if (Random.value <= dropChance) // Random.value는 0.0 <= 값 < 1.0
             {
-                // 죽은 위치 주변에 약간 랜덤하게 생성
-                Vector3 dropPosition = transform.position + new Vector3(Random.Range(-0.3f, 0.3f), Random.Range(-0.3f, 0.3f), 0);
-                Instantiate(chitinScrapPrefab, dropPosition, Quaternion.identity);
+                // 확률 체크 통과 시, 기존 로직 실행
+                int dropAmount = Random.Range(minScrapDrop, maxScrapDrop + 1); // 예: min=1, max=1이면 항상 1개
+                Debug.Log($"[{gameObject.name}] Passed drop chance ({dropChance * 100}%). Dropping {dropAmount} Chitin Scrap(s).");
+
+                for (int i = 0; i < dropAmount; i++)
+                {
+                    Vector3 dropPosition = transform.position + new Vector3(Random.Range(-0.3f, 0.3f), Random.Range(-0.3f, 0.3f), 0);
+                    Instantiate(chitinScrapPrefab, dropPosition, Quaternion.identity);
+                }
+            }
+            else
+            {
+                // 확률 체크 실패 시 로그 (필요시 주석 해제)
+                // Debug.Log($"[{gameObject.name}] Failed drop chance ({dropChance * 100}%). No scrap dropped.");
             }
         }
         else
         {
             Debug.LogWarning($"[{gameObject.name}] Chitin Scrap Prefab is not assigned, cannot drop item.");
         }
-        // ===>>> 추가 끝 <<<===
+        // ===>>> 수정 끝 <<<===
 
-        // 여기에 죽는 이펙트(파티클 등)나 사운드 추가 가능
+        // 죽는 이펙트/사운드 등...
 
-        Destroy(gameObject); // 개미 오브젝트 제거
+        Destroy(gameObject);
     }
 }

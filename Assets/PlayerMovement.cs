@@ -39,7 +39,7 @@ public class PlayerMovement : MonoBehaviour
         if (startPosition != null)
         {
             transform.position = startPosition.position; // 지정된 위치로 플레이어 이동
-            Debug.Log($"플레이어 위치를 {startPosition.position} 로 설정했습니다.", gameObject);
+            //Debug.Log($"플레이어 위치를 {startPosition.position} 로 설정했습니다.", gameObject);
         }
         else
         {
@@ -92,7 +92,7 @@ public class PlayerMovement : MonoBehaviour
             string targetVelStr = $"({targetVelocity.x:F2}, {targetVelocity.y:F2})";
             string currentVelStr = $"({rb.velocity.x:F2}, {rb.velocity.y:F2})";
             // 설정하려는 속도와, 설정 직후 Rigidbody의 실제 속도를 로그로 출력
-            Debug.Log($"Setting Velocity: {targetVelStr} | Current Velocity After Set: {currentVelStr}", gameObject);
+           // Debug.Log($"Setting Velocity: {targetVelStr} | Current Velocity After Set: {currentVelStr}", gameObject);
         }
         // (선택 사항) 입력이 없을 때 즉시 멈추게 하려면 아래 주석 해제
         // else if (rb.velocity.sqrMagnitude > 0.01f) // 입력은 없는데 속도가 남아있다면

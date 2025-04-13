@@ -301,7 +301,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2c0ab786082a9c4499ff1b94a92aecd0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  resourceType: ChitinScrap
+  resourceType: Seed
   amount: 1
   pickupSoundClip: {fileID: 8300000, guid: 164624cc71c628e41a220eff95169ae5, type: 3}
 --- !u!1 &7535897611255583863

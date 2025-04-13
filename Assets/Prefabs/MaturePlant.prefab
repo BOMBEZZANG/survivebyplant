@@ -176,7 +176,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   damage: 5
-  attackRange: 1.5
+  attackRange: 0.7
   attackCooldown: 2
   seedSprite: {fileID: 7783222323691666088, guid: c4554ca9e2e8d1d40b472627e525b3f0, type: 3}
   adultSprite: {fileID: -6506849127942263158, guid: 20d4513bcab1c4543a7d8600479bfcb9, type: 3}

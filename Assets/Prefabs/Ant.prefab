@@ -179,7 +179,8 @@ MonoBehaviour:
   maxHealth: 10
   currentHealth: 0
   chitinScrapPrefab: {fileID: 7694772409491306656, guid: 34619efa8824bb24aaebdce6998c62b0, type: 3}
-  minScrapDrop: 5
+  dropChance: 0.258
+  minScrapDrop: 1
   maxScrapDrop: 1
 --- !u!114 &8139174750759230224
 MonoBehaviour:
