@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 1736048479174356793}
   - component: {fileID: 8284260970822163504}
   - component: {fileID: 3258692248308736876}
+  - component: {fileID: 2983325859019309266}
   m_Layer: 0
   m_Name: ChitinScrapPickup
   m_TagString: Untagged
@@ -124,3 +125,18 @@ CircleCollider2D:
   m_CompositeOrder: 0
   m_Offset: {x: 0, y: 0}
   m_Radius: 0.215
+--- !u!114 &2983325859019309266
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7694772409491306656}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c0ab786082a9c4499ff1b94a92aecd0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  resourceType: ChitinScrap
+  amount: 1
+  pickupSoundClip: {fileID: 8300000, guid: 164624cc71c628e41a220eff95169ae5, type: 3}
