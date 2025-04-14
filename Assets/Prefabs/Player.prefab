@@ -176,8 +176,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6fb0b4d25610b60488dde8d44ec43196, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  seedCount: 3
+  seedCount: 0
   chitinCount: 0
+  waterCount: 0
 --- !u!114 &5842957302561522824
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -1,7 +1,8 @@
 using UnityEngine;
+using System.Collections; // 코루틴 사용을 위해 추가
 
-// 이 스크립트는 SeedPickup, ChitinScrapPickup 등 줍는 아이템 프리팹에 붙입니다.
-// 프리팹에는 반드시 Is Trigger가 켜진 Collider2D 컴포넌트가 있어야 합니다.
+// 이 스크립트는 Collider2D가 반드시 필요함을 명시 (없으면 에디터에서 경고)
+[RequireComponent(typeof(Collider2D))]
 public class ResourcePickup : MonoBehaviour
 {
     [Header("Resource Details")]
@@ -11,51 +12,85 @@ public class ResourcePickup : MonoBehaviour
     [Tooltip("이 아이템 하나가 주는 자원의 양")]
     public int amount = 1;
 
+    // --- 추가: 픽업 지연 시간 설정 ---
+    [Header("Pickup Delay")]
+    [Tooltip("아이템이 생성된 후 획득 가능해질 때까지의 시간 (초)")]
+    public float pickupDelay = 0.5f; // 0.5초 후 획득 가능
+
     [Header("Feedback")]
     [Tooltip("아이템을 주웠을 때 재생할 오디오 클립 (선택 사항)")]
-    public AudioClip pickupSoundClip; // Inspector에서 사운드 파일 연결
+    public AudioClip pickupSoundClip;
+
+    // --- 내부 변수 ---
+    private Collider2D pickupCollider; // 이 오브젝트의 콜라이더 참조
+    private bool canBePickedUp = false; // 픽업 가능 상태 플래그 (대체 방법용, 현재는 콜라이더 활성화/비활성화 사용)
+
+    void Awake() // Start 대신 Awake 사용 권장 (비활성화 전에 실행)
+    {
+        // 자신의 Collider2D 컴포넌트를 찾음
+        pickupCollider = GetComponent<Collider2D>();
+
+        if (pickupCollider == null)
+        {
+            Debug.LogError($"ResourcePickup ({gameObject.name}): Collider2D 컴포넌트를 찾을 수 없습니다! 픽업이 작동하지 않습니다.", gameObject);
+            enabled = false; // 스크립트 비활성화
+            return;
+        }
+
+        // Collider가 Trigger 모드인지 확인 (필수)
+        if (!pickupCollider.isTrigger)
+        {
+             Debug.LogWarning($"ResourcePickup ({gameObject.name}): Collider2D가 Is Trigger로 설정되어 있지 않습니다. 자동으로 설정합니다.", gameObject);
+             pickupCollider.isTrigger = true;
+        }
+
+        // --- 시작 시 콜라이더 비활성화 ---
+        pickupCollider.enabled = false;
+        // Debug.Log($"ResourcePickup ({gameObject.name}): Collider 비활성화됨. {pickupDelay}초 후 활성화됩니다."); // 필요시 주석 해제
+
+        // --- 지연 후 콜라이더 활성화 코루틴 시작 ---
+        StartCoroutine(EnablePickupAfterDelay());
+    }
+
+    // 지정된 시간 후에 콜라이더를 활성화하는 코루틴
+    IEnumerator EnablePickupAfterDelay()
+    {
+        // pickupDelay 만큼 대기
+        yield return new WaitForSeconds(pickupDelay);
+
+        // 대기 후 콜라이더가 여전히 유효하다면 (오브젝트가 파괴되지 않았다면)
+        if (pickupCollider != null)
+        {
+            pickupCollider.enabled = true; // 콜라이더 활성화
+            canBePickedUp = true; // 플래그 업데이트 (대체 방법용)
+            // Debug.Log($"ResourcePickup ({gameObject.name}): Collider 활성화됨. 이제 픽업 가능."); // 필요시 주석 해제
+        }
+    }
 
     // 이 오브젝트의 Trigger Collider 안으로 다른 Collider가 들어왔을 때 호출됨
     void OnTriggerEnter2D(Collider2D other)
     {
-        // 들어온 오브젝트의 태그가 "Player"인지 확인
-        // (Player 게임 오브젝트에 "Player" 태그가 설정되어 있어야 함)
+        // --- 콜라이더가 활성화된 상태에서만 아래 로직 실행 ---
+        // (EnablePickupAfterDelay 코루틴이 실행된 후)
+
         if (other.CompareTag("Player"))
         {
-            // 상세 로그 (필요시 주석 해제)
-            // Debug.Log($"ResourcePickup: Player entered trigger for {resourceType}");
-
-            // 플레이어 오브젝트에서 PlayerInventory 컴포넌트를 찾음
             PlayerInventory playerInventory = other.GetComponent<PlayerInventory>();
 
-            // PlayerInventory 컴포넌트를 찾았는지 확인
             if (playerInventory == null)
             {
                 Debug.LogWarning($"ResourcePickup: Player object ('{other.name}') does not have PlayerInventory component!", gameObject);
-                return; // PlayerInventory 없으면 함수 종료
+                return;
             }
 
-            // PlayerInventory에 자원 추가 시도 및 성공 여부 확인
             if (playerInventory.AddResource(resourceType, amount))
             {
-                // === 사운드 재생 ===
                 if (pickupSoundClip != null)
                 {
-                    // 아이템이 사라지는 위치(현재 위치)에서 사운드 재생
-                    // PlayClipAtPoint는 씬에 임시 AudioSource를 생성하고 재생 후 자동 제거함
                     AudioSource.PlayClipAtPoint(pickupSoundClip, transform.position);
                 }
-                // === 사운드 재생 끝 ===
-
-                // 자원 추가에 성공했으므로, 이 아이템 오브젝트를 파괴하여 제거
                 Destroy(gameObject);
             }
-            // AddResource가 false를 반환하는 경우 (예: 인벤토리 꽉 참 등 PlayerInventory에서 처리)
-            // else
-            // {
-            //    Debug.Log($"ResourcePickup: Could not add {resourceType} (returned false from PlayerInventory)."); // 필요시 주석 해제
-            // }
         }
-    } // OnTriggerEnter2D 끝
-
-} // ResourcePickup 클래스 끝 (여기까지만 있어야 함!)
+    }
+}

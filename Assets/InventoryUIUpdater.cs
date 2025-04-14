@@ -10,27 +10,30 @@ public class InventoryUIUpdater : MonoBehaviour
     [Tooltip("키틴 조각 개수를 표시할 TextMeshProUGUI 컴포넌트")]
     public TextMeshProUGUI chitinCountText;
 
+    // --- 물 개수 UI 요소 추가 ---
+    [Tooltip("물 개수를 표시할 TextMeshProUGUI 컴포넌트")]
+    public TextMeshProUGUI waterCountText; // Inspector에서 연결할 물 개수 Text UI
+
     // --- Private Variables ---
     private PlayerInventory playerInventory; // 플레이어 인벤토리 참조
 
     void Start()
     {
         // 씬에서 PlayerInventory 컴포넌트를 찾습니다.
-        // (씬에 PlayerInventory 컴포넌트를 가진 오브젝트가 하나만 있어야 안정적입니다.)
         playerInventory = FindFirstObjectByType<PlayerInventory>();
 
         if (playerInventory == null)
         {
             Debug.LogError("InventoryUIUpdater: PlayerInventory를 씬에서 찾을 수 없습니다!", gameObject);
-            enabled = false; // 스크립트 비활성화
+            enabled = false;
             return;
         }
 
-        // 필수 UI 요소가 연결되었는지 확인
-        if (seedCountText == null || chitinCountText == null)
+        // --- 필수 UI 요소 확인 (물 포함) ---
+        if (seedCountText == null || chitinCountText == null || waterCountText == null) // waterCountText 확인 추가
         {
-             Debug.LogError("InventoryUIUpdater: UI Text 요소가 Inspector에 연결되지 않았습니다!", gameObject);
-             enabled = false; // 스크립트 비활성화
+             Debug.LogError("InventoryUIUpdater: 필요한 UI Text 요소(씨앗, 키틴, 물) 중 하나 이상이 Inspector에 연결되지 않았습니다!", gameObject);
+             enabled = false;
              return;
         }
 
@@ -41,7 +44,7 @@ public class InventoryUIUpdater : MonoBehaviour
 
     void OnDestroy() // 또는 OnDisable()
     {
-        // 스크립트가 파괴되거나 비활성화될 때 이벤트 구독 해제 (메모리 누수 방지)
+        // 스크립트가 파괴되거나 비활성화될 때 이벤트 구독 해제
         if (playerInventory != null)
         {
             playerInventory.OnInventoryChanged -= UpdateInventoryDisplay;
@@ -55,12 +58,19 @@ public class InventoryUIUpdater : MonoBehaviour
 
         if (seedCountText != null)
         {
-            seedCountText.text = $"x {playerInventory.seedCount}"; // "x [개수]" 형식으로 표시
+            seedCountText.text = $"x {playerInventory.seedCount}";
         }
 
         if (chitinCountText != null)
         {
-            chitinCountText.text = $"x {playerInventory.chitinCount}"; // "x [개수]" 형식으로 표시
+            chitinCountText.text = $"x {playerInventory.chitinCount}";
         }
+
+        // --- 물 개수 업데이트 로직 추가 ---
+        if (waterCountText != null)
+        {
+            waterCountText.text = $"x {playerInventory.waterCount}"; // "x [개수]" 형식으로 물 개수 표시
+        }
+        // ----------------------------
     }
 }
