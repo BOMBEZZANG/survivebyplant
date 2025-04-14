@@ -179,11 +179,16 @@ MonoBehaviour:
   damage: 5
   attackRange: 0.3
   attackCooldown: 2
+  durabilityCostPerAttack: 5
   seedSprite: {fileID: 7783222323691666088, guid: c4554ca9e2e8d1d40b472627e525b3f0, type: 3}
   adultSprite: {fileID: -6506849127942263158, guid: 20d4513bcab1c4543a7d8600479bfcb9, type: 3}
   growthTime: 5
   maxGrowthStage: 1
-  health: 50
+  maxDurability: 35
+  durabilityDecayPerSecond: 0.1
+  durabilityBarPrefab: {fileID: 758252197825889118, guid: be2a7e4515a99584d875dc7a2f23deae, type: 3}
+  durabilityBarOffset: {x: 0, y: -0.5, z: 0}
+  durabilityBarScale: {x: 1, y: 0.2}
   attackRangeCollider: {fileID: -6037514772907348365}
 --- !u!95 &2403332822063715650
 Animator:

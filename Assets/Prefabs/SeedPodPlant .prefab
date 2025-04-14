@@ -184,10 +184,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e515e1f071b5af541b4192ad5c168cd6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  interactionRange: 1
+  interactionRange: 2
   highlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   shakeDuration: 0.5
   shakeMagnitude: 0.1
   seedPickupPrefab: {fileID: 1823455480784079168, guid: d931e4198509cf4488af38ce7d5a5d20, type: 3}
   spawnForce: 1.5
-  cooldownTime: 3
+  maxSeedsToProduce: 2
+  cooldownTime: 5
+  emptyPodSprite: {fileID: 1229923417453695349, guid: 9425db8c62066da42900185e3880c5f2, type: 3}
