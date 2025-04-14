@@ -23,7 +23,7 @@ public class CarnivorousPlant : MonoBehaviour
     [Header("Durability (Health)")]
     [Tooltip("식물의 최대 내구도 (시작 시 내구도)")] public float maxDurability = 100f;
     [Tooltip("1초당 감소할 내구도 (0이면 시간에 따라 감소 안 함)")] public float durabilityDecayPerSecond = 0.1f;
-    private float currentDurability;
+    public float currentDurability;
 
     [Header("Durability UI")]
     [Tooltip("각 식물 아래에 생성될 내구도 바 UI 프리팹 (Slider 및 PlantDurabilityUI 스크립트 포함)")]
@@ -44,13 +44,13 @@ public class CarnivorousPlant : MonoBehaviour
     private SpriteRenderer spriteRenderer;
     private Animator animator;
     private bool isAlive = true;
-    private GameObject durabilityBarInstance;
+    public GameObject durabilityBarInstance;
     private Canvas durabilityUICanvas; // UI 캔버스 참조 추가
 
-    // --- Animator 파라미터 해시 ---
-    private readonly int attackTriggerHash = Animator.StringToHash("AttackTrigger");
-    private readonly int dieTriggerHash = Animator.StringToHash("DieTrigger");
-    private readonly int growthStageHash = Animator.StringToHash("GrowthStage");
+    // --- 애니메이터 파라미터를 문자열로 변경 (해시 대신) ---
+    private readonly string attackTriggerParam = "AttackTrigger";
+    private readonly string dieTriggerParam = "DieTrigger";
+    private readonly string growthStageParam = "GrowthStage";
 
     // 내구도 변경 이벤트 선언
     public event Action<float> OnDurabilityChanged;
@@ -96,9 +96,13 @@ public class CarnivorousPlant : MonoBehaviour
         UpdateVisuals();
 
         // 공격 콜라이더 초기 설정
-        attackRangeCollider.isTrigger = true;
-        attackRangeCollider.radius = attackRange;
-        attackRangeCollider.enabled = false;
+        if (attackRangeCollider != null) {
+            attackRangeCollider.isTrigger = true;
+            attackRangeCollider.radius = attackRange;
+            attackRangeCollider.enabled = false;
+        } else {
+            Debug.LogWarning($"[{gameObject.name}] Start: attackRangeCollider가 없습니다.");
+        }
 
         // === 내구도 UI 생성 및 초기화 ===
         CreateDurabilityBar();
@@ -108,118 +112,152 @@ public class CarnivorousPlant : MonoBehaviour
             StartCoroutine(GrowTimer());
         }
 
-        // 시작 시 현재 내구도 비율 이벤트 호출
-        OnDurabilityChanged?.Invoke(GetCurrentDurabilityRatio());
+        // 명시적으로 내구도 이벤트 발생 (UI 초기 업데이트)
+        float ratio = GetCurrentDurabilityRatio();
+        Debug.Log($"[{gameObject.name}] Start: 초기 내구도 비율 {ratio:F2} 이벤트 발생");
+        OnDurabilityChanged?.Invoke(ratio);
     }
 
     // 내구도 바 UI 생성 함수
-   // 내구도 바 UI 생성 함수
-private void CreateDurabilityBar()
-{
-    if (durabilityBarPrefab == null) {
-        Debug.LogWarning($"[{gameObject.name}] Durability Bar Prefab이 연결되지 않았습니다.", gameObject);
-        return;
-    }
-
-    Debug.Log($"[{gameObject.name}] CreateDurabilityBar: 내구도 바 생성 시작");
-
-    // 월드 스페이스 좌표로 UI 위치 계산
-    Vector3 spawnPos = transform.position + durabilityBarOffset;
-    
-    // UI 오브젝트 생성 (부모 설정 없이 독립적으로 생성)
-    durabilityBarInstance = Instantiate(durabilityBarPrefab, spawnPos, Quaternion.identity);
-    
-    // 이름 설정 (디버깅 용이성)
-    durabilityBarInstance.name = $"{gameObject.name}_DurabilityBar";
-    Debug.Log($"[{gameObject.name}] CreateDurabilityBar: 내구도 바 인스턴스 생성됨: {durabilityBarInstance.name}");
-    
-    // 캔버스 설정 확인
-    Canvas canvas = durabilityBarInstance.GetComponent<Canvas>();
-    if (canvas == null)
+    private void CreateDurabilityBar()
     {
-        canvas = durabilityBarInstance.GetComponentInChildren<Canvas>();
-    }
-    
-    if (canvas != null)
-    {
-        // 월드 스페이스 캔버스 설정 확인/조정
-        if (canvas.renderMode != RenderMode.WorldSpace)
+        if (durabilityBarPrefab == null) {
+            Debug.LogWarning($"[{gameObject.name}] Durability Bar Prefab이 연결되지 않았습니다.", gameObject);
+            return;
+        }
+
+        // 기존 UI가 있으면 제거
+        if (durabilityBarInstance != null) {
+            Destroy(durabilityBarInstance);
+        }
+
+        Debug.Log($"[{gameObject.name}] CreateDurabilityBar: 내구도 바 생성 시작");
+
+        // 월드 스페이스 좌표로 UI 위치 계산
+        Vector3 spawnPos = transform.position + durabilityBarOffset;
+        
+        // UI 오브젝트 생성
+        durabilityBarInstance = Instantiate(durabilityBarPrefab, spawnPos, Quaternion.identity);
+        durabilityBarInstance.name = $"{gameObject.name}_DurabilityBar";
+        
+        // 캔버스 설정 확인
+        Canvas canvas = durabilityBarInstance.GetComponent<Canvas>();
+        if (canvas == null)
         {
-            Debug.LogWarning($"[{gameObject.name}] CreateDurabilityBar: Canvas의 Render Mode가 World Space가 아닙니다. World Space로 변경합니다.", durabilityBarInstance);
-            canvas.renderMode = RenderMode.WorldSpace;
+            canvas = durabilityBarInstance.GetComponentInChildren<Canvas>();
         }
         
-        // 캔버스 스케일 조정 (크기가 적절하도록)
-        canvas.transform.localScale = new Vector3(durabilityBarScale.x, durabilityBarScale.y, 1f) * 0.01f;
-        Debug.Log($"[{gameObject.name}] CreateDurabilityBar: Canvas 스케일 설정: {canvas.transform.localScale}");
-        
-        // Canvas 상태 확인
-        Debug.Log($"[{gameObject.name}] CreateDurabilityBar: Canvas 렌더 모드: {canvas.renderMode}, worldCamera: {canvas.worldCamera}");
-        
-        // 월드 카메라 설정 (없으면 메인 카메라 사용)
-        if (canvas.worldCamera == null && Camera.main != null)
+        if (canvas != null)
         {
-            canvas.worldCamera = Camera.main;
-            Debug.Log($"[{gameObject.name}] CreateDurabilityBar: Canvas 월드 카메라를 메인 카메라로 설정");
+            // 월드 스페이스 캔버스 설정 확인/조정
+            if (canvas.renderMode != RenderMode.WorldSpace)
+            {
+                Debug.LogWarning($"[{gameObject.name}] CreateDurabilityBar: Canvas의 Render Mode가 World Space가 아닙니다. World Space로 변경합니다.", durabilityBarInstance);
+                canvas.renderMode = RenderMode.WorldSpace;
+            }
+            
+            // 캔버스 스케일 조정 (크기가 적절하도록)
+            canvas.transform.localScale = new Vector3(durabilityBarScale.x, durabilityBarScale.y, 1f) * 0.01f;
+            Debug.Log($"[{gameObject.name}] CreateDurabilityBar: Canvas 스케일 설정: {canvas.transform.localScale}");
+            
+            // Canvas 상태 확인
+            Debug.Log($"[{gameObject.name}] CreateDurabilityBar: Canvas 렌더 모드: {canvas.renderMode}, worldCamera: {canvas.worldCamera}");
+            
+            // 월드 카메라 설정 (없으면 메인 카메라 사용)
+            if (canvas.worldCamera == null && Camera.main != null)
+            {
+                canvas.worldCamera = Camera.main;
+                Debug.Log($"[{gameObject.name}] CreateDurabilityBar: Canvas 월드 카메라를 메인 카메라로 설정");
+            }
+        }
+        else
+        {
+            Debug.LogError($"[{gameObject.name}] CreateDurabilityBar: 내구도 바에 Canvas 컴포넌트가 없습니다!", durabilityBarInstance);
+        }
+        
+        // UI가 항상 카메라를 향하도록 설정
+        if (durabilityBarInstance != null && Camera.main != null)
+        {
+            durabilityBarInstance.transform.forward = Camera.main.transform.forward;
+            Debug.Log($"[{gameObject.name}] CreateDurabilityBar: UI를 카메라 방향으로 회전");
+        }
+        
+        // 고정 위치 설정을 위한 Follow 스크립트 추가
+        DurabilityBarFollow followScript = durabilityBarInstance.AddComponent<DurabilityBarFollow>();
+        if (followScript != null)
+        {
+            followScript.targetTransform = transform;
+            followScript.offset = durabilityBarOffset;
+            Debug.Log($"[{gameObject.name}] CreateDurabilityBar: Follow 스크립트 추가 및 설정 완료");
+        }
+        
+        // UI 스크립트 초기화
+        PlantDurabilityUI uiScript = durabilityBarInstance.GetComponent<PlantDurabilityUI>();
+        if (uiScript == null)
+        {
+            uiScript = durabilityBarInstance.GetComponentInChildren<PlantDurabilityUI>();
+        }
+        
+        if (uiScript != null)
+        {
+            Debug.Log($"[{gameObject.name}] CreateDurabilityBar: PlantDurabilityUI 스크립트 찾음, 초기화 시작");
+            
+            // 초기화 전에 현재 내구도 값 확인 (디버깅)
+            float ratio = GetCurrentDurabilityRatio();
+            Debug.Log($"[{gameObject.name}] CreateDurabilityBar: 초기화 전 내구도 비율: {ratio:F2} (현재: {currentDurability}/{maxDurability})");
+            
+            // UI 스크립트 초기화
+            uiScript.Initialize(this);
+            
+            // 이벤트 발생 (UI 업데이트)
+            OnDurabilityChanged?.Invoke(ratio);
+        }
+        else
+        {
+            Debug.LogError($"[{gameObject.name}] CreateDurabilityBar: Durability Bar Prefab에 PlantDurabilityUI 스크립트가 없습니다!", durabilityBarPrefab);
+            Destroy(durabilityBarInstance);
         }
     }
-    else
-    {
-        Debug.LogError($"[{gameObject.name}] CreateDurabilityBar: 내구도 바에 Canvas 컴포넌트가 없습니다!", durabilityBarInstance);
-    }
-    
-    // UI가 항상 카메라를 향하도록 설정
-    if (durabilityBarInstance != null && Camera.main != null)
-    {
-        durabilityBarInstance.transform.forward = Camera.main.transform.forward;
-        Debug.Log($"[{gameObject.name}] CreateDurabilityBar: UI를 카메라 방향으로 회전");
-    }
-    
-    // 고정 위치 설정을 위한 Follow 스크립트 추가
-    DurabilityBarFollow followScript = durabilityBarInstance.AddComponent<DurabilityBarFollow>();
-    if (followScript != null)
-    {
-        followScript.targetTransform = transform;
-        followScript.offset = durabilityBarOffset;
-        Debug.Log($"[{gameObject.name}] CreateDurabilityBar: Follow 스크립트 추가 및 설정 완료");
-    }
-    
-    // UI 스크립트 초기화
-    PlantDurabilityUI uiScript = durabilityBarInstance.GetComponent<PlantDurabilityUI>();
-    if (uiScript == null)
-    {
-        uiScript = durabilityBarInstance.GetComponentInChildren<PlantDurabilityUI>();
-    }
-    
-    if (uiScript != null)
-    {
-        Debug.Log($"[{gameObject.name}] CreateDurabilityBar: PlantDurabilityUI 스크립트 찾음, 초기화 시작");
-        uiScript.Initialize(this);
-    }
-    else
-    {
-        Debug.LogError($"[{gameObject.name}] CreateDurabilityBar: Durability Bar Prefab에 PlantDurabilityUI 스크립트가 없습니다!", durabilityBarPrefab);
-        Destroy(durabilityBarInstance);
-    }
-}
 
     void Update()
     {
         if (!isAlive) return;
 
-        // 시간당 내구도 감소
+        // 시간당 내구도 감소 (성장 단계가 최대일 때만)
         if (currentGrowthStage >= maxGrowthStage && durabilityDecayPerSecond > 0f)
         {
+            // 이전 값 저장 (변경 감지용)
+            float prevDurability = currentDurability;
+            
+            // 내구도 감소
             currentDurability -= durabilityDecayPerSecond * Time.deltaTime;
-            OnDurabilityChanged?.Invoke(GetCurrentDurabilityRatio());
-            if (currentDurability <= 0f) { Die(); return; }
+            currentDurability = Mathf.Max(0f, currentDurability); // 0 미만으로 떨어지지 않도록
+            
+            // 값이 변경되었다면 이벤트 발생 (최적화)
+            if (Mathf.Abs(prevDurability - currentDurability) > 0.01f)
+            {
+                float ratio = GetCurrentDurabilityRatio();
+                Debug.Log($"[{gameObject.name}] Update: 내구도 감소됨: {currentDurability:F2}/{maxDurability:F2}, 비율: {ratio:F2}");
+                OnDurabilityChanged?.Invoke(ratio);
+            }
+            
+            // 내구도가 0 이하면 사망
+            if (currentDurability <= 0f) { 
+                Debug.Log($"[{gameObject.name}] Update: 내구도 0 이하로 사망 처리");
+                Die(); 
+                return;
+            }
         }
 
         // 공격 로직
         if (currentGrowthStage >= maxGrowthStage && attackRangeCollider != null && attackRangeCollider.enabled)
         {
-            if (currentTarget != null && Time.time >= lastAttackTime + attackCooldown) { Attack(); }
-            if (currentTarget != null && !currentTarget.activeInHierarchy) { currentTarget = null; }
+            if (currentTarget != null && Time.time >= lastAttackTime + attackCooldown) { 
+                Attack(); 
+            }
+            if (currentTarget != null && !currentTarget.activeInHierarchy) { 
+                currentTarget = null; 
+            }
         }
     }
 
@@ -264,50 +302,31 @@ private void CreateDurabilityBar()
         }
     }
     
-    public void UpdateVisuals() {
-        if (spriteRenderer != null) {
-            Sprite targetSprite = (currentGrowthStage == 0) ? seedSprite : adultSprite;
-            if (targetSprite != null && spriteRenderer.sprite != targetSprite) { 
-                spriteRenderer.sprite = targetSprite; 
+   public void UpdateVisuals() {
+    if (spriteRenderer != null) {
+        Sprite targetSprite = (currentGrowthStage == 0) ? seedSprite : adultSprite;
+        if (targetSprite != null && spriteRenderer.sprite != targetSprite) { 
+            spriteRenderer.sprite = targetSprite; 
+        }
+    }
+    
+    if (animator != null) {
+        // 더 간단하게 수정 - 파라미터 존재 여부 검사
+        bool hasGrowthParam = false;
+        foreach (var param in animator.parameters) {
+            if (param.name == growthStageParam) {
+                hasGrowthParam = true;
+                break;
             }
         }
         
-        if (animator != null) {
-            animator.SetInteger(growthStageHash, currentGrowthStage);
+        if (hasGrowthParam) {
+            animator.SetInteger(growthStageParam, currentGrowthStage);
         }
+        // 경고 메시지 제거 - 파라미터가 없으면 조용히 무시함
     }
-
+}
     // --- 공격 및 피격 함수 ---
-    void Attack()
-    {
-        if (currentTarget == null || !isAlive) return;
-
-        if (animator != null) { 
-            animator.SetTrigger(attackTriggerHash); 
-        }
-        lastAttackTime = Time.time;
-
-        // 공격 시 내구도 소모
-        if (durabilityCostPerAttack > 0f)
-        {
-            currentDurability -= durabilityCostPerAttack;
-            OnDurabilityChanged?.Invoke(GetCurrentDurabilityRatio());
-            Debug.Log($"[{gameObject.name}] Attacked! Durability cost: {durabilityCostPerAttack}. Current: {currentDurability}/{maxDurability}");
-            if (currentDurability <= 0f) { Die(); return; }
-        }
-
-        // 데미지 전달
-        AntHealth antHealth = currentTarget.GetComponent<AntHealth>();
-        if (antHealth != null) {
-             antHealth.TakeDamage(damage);
-             if (currentTarget != null && (!currentTarget.activeInHierarchy || antHealth.currentHealth <= 0)) { 
-                 currentTarget = null; 
-             }
-        } else { 
-            currentTarget = null; 
-        }
-    }
-
     public void TakeDamage(float damageAmount)
     {
         if (!isAlive || damageAmount <= 0) return;
@@ -322,34 +341,104 @@ private void CreateDurabilityBar()
 
     public float GetCurrentDurabilityRatio()
     {
-        if (maxDurability <= 0f) return 0f;
-        return Mathf.Clamp01(currentDurability / maxDurability);
+        // 0으로 나누기 방지
+        if (maxDurability <= 0.001f) {
+            Debug.LogWarning($"[{gameObject.name}] GetCurrentDurabilityRatio: maxDurability가 0에 가깝습니다. ({maxDurability})");
+            return 0f;
+        }
+        
+        // 현재 내구도가 음수일 경우 방지
+        float safeCurrentDurability = Mathf.Max(0f, currentDurability);
+        
+        // 내구도 비율 계산 (0~1 사이 값)
+        float ratio = Mathf.Clamp01(safeCurrentDurability / maxDurability);
+        
+        // 디버그 로그 (값 확인)
+        Debug.Log($"[{gameObject.name}] GetCurrentDurabilityRatio: {safeCurrentDurability}/{maxDurability} = {ratio:F2}");
+        
+        return ratio;
     }
 
-    private void Die() {
-        if (!isAlive) return;
-        isAlive = false;
-        Debug.Log($"[{gameObject.name}] 식물이 죽었습니다! (내구도 고갈)");
+// Die 함수 내의 애니메이터 코드 수정
+private void Die() {
+    if (!isAlive) return;
+    isAlive = false;
+    Debug.Log($"[{gameObject.name}] 식물이 죽었습니다! (내구도 고갈)");
 
-        // 상호작용 비활성화
-        if(attackRangeCollider != null) attackRangeCollider.enabled = false;
-        Collider2D mainCollider = GetComponent<Collider2D>();
-        if(mainCollider != null && !mainCollider.isTrigger) { mainCollider.enabled = false; }
+    // 상호작용 비활성화
+    if(attackRangeCollider != null) attackRangeCollider.enabled = false;
+    Collider2D mainCollider = GetComponent<Collider2D>();
+    if(mainCollider != null && !mainCollider.isTrigger) { mainCollider.enabled = false; }
 
-        // 죽는 애니메이션
-        if (animator != null) { 
-            animator.SetTrigger(dieTriggerHash); 
+    // 죽는 애니메이션 (안전 검사 추가) - 파라미터가 없으면 경고 없이 넘어감
+    if (animator != null) {
+        // 더 간단하게 수정 - 파라미터 존재 여부 검사
+        bool hasDieParam = false;
+        foreach (var param in animator.parameters) {
+            if (param.name == dieTriggerParam) {
+                hasDieParam = true;
+                break;
+            }
         }
-
-        // 내구도 바 UI 제거
-        if (durabilityBarInstance != null) { 
-            Destroy(durabilityBarInstance); 
+        
+        if (hasDieParam) {
+            animator.SetTrigger(dieTriggerParam);
         }
-
-        // 오브젝트 제거
-        Destroy(gameObject, 2f);
+        // 경고 메시지 제거 - 파라미터가 없으면 조용히 무시함
     }
 
+    // 내구도 바 UI 제거
+    if (durabilityBarInstance != null) { 
+        Destroy(durabilityBarInstance); 
+    }
+
+    // 오브젝트 제거
+    Destroy(gameObject, 2f);
+}
+
+// Attack 함수 내의 애니메이터 코드 수정
+void Attack()
+{
+    if (currentTarget == null || !isAlive) return;
+
+    if (animator != null) { 
+        // 더 간단하게 수정 - 파라미터 존재 여부 검사
+        bool hasAttackParam = false;
+        foreach (var param in animator.parameters) {
+            if (param.name == attackTriggerParam) {
+                hasAttackParam = true;
+                break;
+            }
+        }
+        
+        if (hasAttackParam) {
+            animator.SetTrigger(attackTriggerParam); 
+        }
+        // 경고 메시지 제거 - 파라미터가 없으면 조용히 무시함
+    }
+    
+    lastAttackTime = Time.time;
+
+    // 공격 시 내구도 소모
+    if (durabilityCostPerAttack > 0f)
+    {
+        currentDurability -= durabilityCostPerAttack;
+        OnDurabilityChanged?.Invoke(GetCurrentDurabilityRatio());
+        Debug.Log($"[{gameObject.name}] Attacked! Durability cost: {durabilityCostPerAttack}. Current: {currentDurability}/{maxDurability}");
+        if (currentDurability <= 0f) { Die(); return; }
+    }
+
+    // 데미지 전달
+    AntHealth antHealth = currentTarget.GetComponent<AntHealth>();
+    if (antHealth != null) {
+         antHealth.TakeDamage(damage);
+         if (currentTarget != null && (!currentTarget.activeInHierarchy || antHealth.currentHealth <= 0)) { 
+             currentTarget = null; 
+         }
+    } else { 
+        currentTarget = null; 
+    }
+}
     void OnDestroy()
     {
         // UI 제거
