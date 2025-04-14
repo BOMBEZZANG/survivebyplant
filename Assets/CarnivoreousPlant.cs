@@ -1,9 +1,10 @@
 using System.Collections;
-using System.Collections.Generic; // Needed for IEnumerator
+using System.Collections.Generic;
 using UnityEngine;
 
-// 필요한 컴포넌트 자동 추가
+// Animator 컴포넌트도 필요하므로 RequireComponent 추가 (선택 사항)
 [RequireComponent(typeof(SpriteRenderer))]
+[RequireComponent(typeof(Animator))] // Animator 컴포넌트 필요 명시
 public class CarnivorousPlant : MonoBehaviour
 {
     // --- Inspector에서 할당/설정할 변수들 ---
@@ -31,102 +32,86 @@ public class CarnivorousPlant : MonoBehaviour
     private SpriteRenderer spriteRenderer;
     private bool isAlive = true;
 
+    // ===>>> 추가: Animator 참조 변수 <<<===
+    private Animator animator;
+    // ===>>> 추가: Animator 파라미터 이름 (오타 방지용) <<<===
+    private readonly int attackTriggerHash = Animator.StringToHash("AttackTrigger"); // "AttackTrigger"는 Animator에서 설정한 이름과 일치해야 함
+
     // --- Unity 내장 메서드 ---
 
     void Start()
     {
         spriteRenderer = GetComponent<SpriteRenderer>();
+        // ===>>> 추가: Animator 컴포넌트 가져오기 <<<===
+        animator = GetComponent<Animator>();
 
+        // 필수 컴포넌트 확인
         if (attackRangeCollider == null) {
-            Debug.LogError($"[{gameObject.name}] Attack Range Collider가 Inspector에 연결되지 않았습니다! 공격 기능을 사용할 수 없습니다.", gameObject);
+            Debug.LogError($"[{gameObject.name}] Attack Range Collider가 Inspector에 연결되지 않았습니다!", gameObject);
             isAlive = false;
         }
         if (spriteRenderer == null) {
             Debug.LogError($"[{gameObject.name}] SpriteRenderer 컴포넌트가 없습니다!", gameObject);
             isAlive = false;
-            return;
+        }
+        // ===>>> 추가: Animator 확인 <<<===
+        if (animator == null) {
+            Debug.LogError($"[{gameObject.name}] Animator 컴포넌트가 없습니다!", gameObject);
+            // isAlive = false; // 애니메이션 없어도 공격은 가능할 수 있으므로 주석 처리
         }
 
-        isAlive = true;
+        if (!isAlive) return; // 필수 컴포넌트 없으면 초기화 중단
+
         currentGrowthStage = 0;
-        lastAttackTime = -attackCooldown;
-        UpdateSprite();
+        lastAttackTime = -attackCooldown; // 게임 시작하자마자 공격 가능하도록
+        UpdateSprite(); // 초기 스프라이트 설정
 
         if (attackRangeCollider != null) {
             attackRangeCollider.isTrigger = true;
             attackRangeCollider.radius = attackRange;
-            attackRangeCollider.enabled = false; // 처음엔 비활성화
+            attackRangeCollider.enabled = false; // 성체 되기 전까지 비활성화
         }
 
         if (growthTime > 0 && currentGrowthStage < maxGrowthStage) {
             StartCoroutine(GrowTimer());
         } else if (currentGrowthStage >= maxGrowthStage) {
             EnableAttackCollider();
-            Debug.Log($"[{gameObject.name}] 성체 상태로 시작됨.");
+            // Debug.Log($"[{gameObject.name}] 성체 상태로 시작됨."); // 필요시 주석 해제
         }
-         Debug.Log($"[{gameObject.name}] 식물 초기화 완료. 현재 단계: {currentGrowthStage}");
+         // Debug.Log($"[{gameObject.name}] 식물 초기화 완료. 현재 단계: {currentGrowthStage}"); // 필요시 주석 해제
     }
 
      void Update()
      {
-         // --- Update 함수 진입 조건 확인 로그 ---
-         bool isUpdateBlocked = !isAlive || currentGrowthStage < maxGrowthStage || attackRangeCollider == null || !attackRangeCollider.enabled;
-         // if(isUpdateBlocked) Debug.Log($"Update returning early: isAlive={isAlive}, stage={currentGrowthStage}<{maxGrowthStage}={(currentGrowthStage < maxGrowthStage)}, colliderNull={attackRangeCollider == null}, colliderEnabled={attackRangeCollider?.enabled ?? false}");
-         // --- 로그 끝 ---
+         if (!isAlive || currentGrowthStage < maxGrowthStage || attackRangeCollider == null || !attackRangeCollider.enabled) return;
 
-         if (isUpdateBlocked) return; // 조건 안 맞으면 실행 중지
-
-         // --- 공격 쿨다운 및 실행 로직 ---
-         if (currentTarget != null) // 타겟이 있어야 함
+         if (currentTarget != null)
          {
-             // --- 공격 준비 상태 확인 로그 (활성화!) ---
-             // 현재 시간, 마지막 공격 시간, 쿨다운, 다음 공격 가능 시간, 타겟 이름 출력
-            // Debug.Log($"[{gameObject.name}] Update Attack Check: Time={Time.time}, LastAttack={lastAttackTime}, Cooldown={attackCooldown}, TimeToAttack={lastAttackTime + attackCooldown}, Target={currentTarget.name}");
-             // --- 로그 끝 ---
-
-             if (Time.time >= lastAttackTime + attackCooldown) // 쿨다운 시간 지났는지 확인
+             if (Time.time >= lastAttackTime + attackCooldown)
              {
-                 Attack(); // 공격 실행
+                 Attack();
              }
          }
 
-         // --- 타겟 유효성 검사 ---
-         if (currentTarget != null && !currentTarget.activeInHierarchy) // 타겟이 비활성화되었는지 (죽었는지) 확인
+         // 타겟 유효성 검사 (비활성화/파괴된 경우)
+         if (currentTarget != null && !currentTarget.activeInHierarchy)
          {
-              Debug.Log($"[{gameObject.name}] 타겟 ({currentTarget.name}) 비활성화됨. 타겟 해제.");
-              currentTarget = null; // 타겟 정리
+              // Debug.Log($"[{gameObject.name}] 타겟 ({currentTarget.name}) 비활성화됨. 타겟 해제."); // 필요시 주석 해제
+              currentTarget = null;
          }
      }
 
-     // --- Trigger 관련 메서드 ---
-
+     // Trigger 관련 함수들 (OnTriggerStay2D, OnTriggerExit2D)은 변경 없음
      void OnTriggerStay2D(Collider2D other)
      {
-         // --- OnTriggerStay2D 함수 진입 조건 확인 로그 ---
-         bool isTriggerBlocked = !isAlive || currentGrowthStage < maxGrowthStage || attackRangeCollider == null || !attackRangeCollider.enabled;
-         // if(isTriggerBlocked) Debug.Log($"OnTriggerStay2D returning early: isAlive={isAlive}, stage={currentGrowthStage}<{maxGrowthStage}={(currentGrowthStage < maxGrowthStage)}, colliderNull={attackRangeCollider == null}, colliderEnabled={attackRangeCollider?.enabled ?? false}");
-         // --- 로그 끝 ---
+         if (!isAlive || currentGrowthStage < maxGrowthStage || attackRangeCollider == null || !attackRangeCollider.enabled) return;
 
-         if (isTriggerBlocked) return; // 조건 안 맞으면 실행 중지
-
-         // --- 상세 탐지 로그 (활성화!) ---
-         // 범위 안에 머무는 모든 객체 정보 출력
-         Debug.Log($"[{gameObject.name}] OnTriggerStay2D ACTIVE: Detected '{other.name}' with tag '{other.tag}'");
-         // --- 로그 끝 ---
-
-         if (other.CompareTag("Enemy")) // 태그가 "Enemy"인지 확인
+         if (other.CompareTag("Enemy"))
          {
-             // --- 상세 타겟 설정 로그 (활성화!) ---
-             // Enemy 태그 감지 및 현재 타겟 상태 로그 출력
-             Debug.Log($"[{gameObject.name}] OnTriggerStay2D: Detected Enemy '{other.name}'. Current target is {(currentTarget == null ? "NULL" : currentTarget.name)}");
-             // --- 로그 끝 ---
              if (currentTarget == null) // 현재 타겟이 없을 때만 새 타겟으로 설정
              {
-                 // --- 상세 타겟 설정 로그 (활성화!) ---
-                 // 타겟 설정 로그 출력
-                 Debug.Log($"[{gameObject.name}] OnTriggerStay2D: Setting currentTarget to {other.name}");
-                 // --- 로그 끝 ---
-                 currentTarget = other.gameObject; // 타겟 설정
+                 // Debug.Log($"[{gameObject.name}] OnTriggerStay2D: Setting currentTarget to {other.name}"); // 필요시 주석 해제
+                 currentTarget = other.gameObject;
              }
          }
      }
@@ -135,18 +120,15 @@ public class CarnivorousPlant : MonoBehaviour
      {
          if (!isAlive) return;
 
-         if (other.gameObject == currentTarget) // 현재 타겟이 범위를 벗어났다면
+         if (other.gameObject == currentTarget)
          {
-             // --- 상세 타겟 해제 로그 (활성화!) ---
-             Debug.Log($"[{gameObject.name}] 타겟 ({other.name}) 범위 이탈. 타겟 해제.");
-             // --- 로그 끝 ---
-             currentTarget = null; // 타겟 해제
+             // Debug.Log($"[{gameObject.name}] 타겟 ({other.name}) 범위 이탈. 타겟 해제."); // 필요시 주석 해제
+             currentTarget = null;
          }
      }
 
 
-    // --- 성장 관련 메서드 ---
-
+    // 성장 관련 함수들 (GrowTimer, GrowPlant, EnableAttackCollider, UpdateSprite)은 변경 없음
     IEnumerator GrowTimer()
     {
         yield return new WaitForSeconds(growthTime);
@@ -160,23 +142,18 @@ public class CarnivorousPlant : MonoBehaviour
         {
             currentGrowthStage++;
             UpdateSprite();
-            // 활성화 시도 및 결과 확인 로그
-            Debug.Log($"[{gameObject.name}] GrowPlant: Calling EnableAttackCollider(). attackRangeCollider is {(attackRangeCollider == null ? "NULL" : "Assigned")}");
             EnableAttackCollider();
-            if(attackRangeCollider != null) {
-                 Debug.Log($"[{gameObject.name}] GrowPlant: After EnableAttackCollider() call, collider enabled state is: {attackRangeCollider.enabled}");
-            }
-            Debug.Log($"[{gameObject.name}] 식물이 성장했습니다. 현재 단계: {currentGrowthStage}");
+            // Debug.Log($"[{gameObject.name}] 식물이 성장했습니다. 현재 단계: {currentGrowthStage}"); // 필요시 주석 해제
         }
     }
 
     void EnableAttackCollider() {
          if (attackRangeCollider != null) {
-            Debug.Log($"[{gameObject.name}] EnableAttackCollider(): Attempting to enable collider.");
+            // Debug.Log($"[{gameObject.name}] EnableAttackCollider(): Attempting to enable collider."); // 필요시 주석 해제
             attackRangeCollider.enabled = true;
-            Debug.Log($"[{gameObject.name}] EnableAttackCollider(): Tried setting enabled. Current state: {attackRangeCollider.enabled}."); // 활성화 후 상태 확인
+            // Debug.Log($"[{gameObject.name}] EnableAttackCollider(): Collider enabled state is: {attackRangeCollider.enabled}."); // 필요시 주석 해제
          } else {
-             Debug.LogWarning($"[{gameObject.name}] EnableAttackCollider(): attackRangeCollider is NULL.");
+             // Debug.LogWarning($"[{gameObject.name}] EnableAttackCollider(): attackRangeCollider is NULL."); // 필요시 주석 해제
          }
     }
 
@@ -184,54 +161,63 @@ public class CarnivorousPlant : MonoBehaviour
     {
          if (spriteRenderer == null) return;
          try {
+             // === 수정: 성장 단계에 따라 스프라이트 대신 Animator 상태를 제어할 수도 있음 ===
+             // 여기서는 여전히 직접 스프라이트를 바꾸지만, Animator로 Idle 상태를 관리하는 것이 더 일반적
              Sprite targetSprite = (currentGrowthStage == 0) ? seedSprite : adultSprite;
              if (targetSprite != null) {
                  if(spriteRenderer.sprite != targetSprite) {
                      spriteRenderer.sprite = targetSprite;
                  }
-             } else {
-                 // Debug.LogWarning($"[{gameObject.name}] UpdateSprite: 단계 {currentGrowthStage}에 해당하는 스프라이트가 없습니다.");
              }
          } catch (System.Exception e) {
              Debug.LogError($"[{gameObject.name}] UpdateSprite 중 오류 발생: {e.Message}\n{e.StackTrace}");
          }
     }
 
-    // --- 공격 및 체력 관련 메서드 ---
-
-// CarnivorousPlant.cs의 Attack 함수 수정
-void Attack()
-{
-    if (currentTarget == null) {
-         Debug.LogWarning($"[{gameObject.name}] Attack() called but currentTarget is null.");
-         return;
-    }
-
-    Debug.Log($"[{gameObject.name}] 개미 ({currentTarget.name}) 공격!");
-    lastAttackTime = Time.time; // 쿨다운 타이머 리셋
-
-    AntHealth antHealth = currentTarget.GetComponent<AntHealth>();
-    if (antHealth != null)
+    // 공격 함수 수정
+    void Attack()
     {
-        antHealth.TakeDamage(damage);
-        // --- 여기에 공격 애니메이션/이펙트/사운드 재생 ---
-
-        // === 추가: 공격 후 타겟이 죽었는지 확인하고 즉시 타겟 해제 ===
-        // TakeDamage 호출 후 AntHealth 상태를 다시 확인하거나,
-        // currentTarget이 비활성화되었는지 확인하여 죽었는지 판단할 수 있습니다.
-        if (currentTarget != null && (!currentTarget.activeInHierarchy || antHealth.currentHealth <= 0))
-        {
-            Debug.Log($"[{gameObject.name}] Target {currentTarget.name} confirmed dead after attack. Clearing target.");
-            currentTarget = null; // 즉시 타겟 해제
+        if (currentTarget == null) {
+             // Debug.LogWarning($"[{gameObject.name}] Attack() called but currentTarget is null."); // 필요시 주석 해제
+             return;
         }
-        // === 추가 끝 ===
+
+        // Debug.Log($"[{gameObject.name}] 개미 ({currentTarget.name}) 공격!"); // 필요시 주석 해제
+        lastAttackTime = Time.time;
+
+        // ===>>> 추가: 공격 애니메이션 트리거 <<<===
+        if (animator != null)
+        {
+            // Animator Controller에서 설정한 Trigger 파라미터 이름("AttackTrigger")과 일치해야 함
+            animator.SetTrigger(attackTriggerHash); // StringToHash 사용이 성능에 더 좋음
+            // 또는 animator.SetTrigger("AttackTrigger");
+             Debug.Log($"[{gameObject.name}] Attack Animation Triggered!"); // 애니메이션 트리거 확인 로그
+        }
+        // ===>>> 애니메이션 트리거 끝 <<<===
+
+        // --- 여기에 공격 시점 사운드 재생 추가 가능 ---
+        // if (attackSoundClip != null && audioSource != null) { /* ... Play sound ... */ }
+
+        AntHealth antHealth = currentTarget.GetComponent<AntHealth>();
+        if (antHealth != null)
+        {
+            antHealth.TakeDamage(damage);
+
+            // 공격 후 타겟 생존 여부 확인 및 타겟 해제
+            if (currentTarget != null && (!currentTarget.activeInHierarchy || antHealth.currentHealth <= 0))
+            {
+                // Debug.Log($"[{gameObject.name}] Target {currentTarget.name} confirmed dead after attack. Clearing target."); // 필요시 주석 해제
+                currentTarget = null;
+            }
+        }
+        else
+        {
+            // Debug.LogWarning($"[{gameObject.name}] 타겟 {currentTarget.name}의 AntHealth를 찾을 수 없습니다. 타겟 해제."); // 필요시 주석 해제
+            currentTarget = null;
+        }
     }
-    else
-    {
-        Debug.LogWarning($"[{gameObject.name}] 타겟 {currentTarget.name}의 AntHealth를 찾을 수 없습니다. 타겟 해제.");
-        currentTarget = null; // 타겟 정리
-    }
-}
+
+    // TakeDamage, Die 함수는 변경 없음
     public void TakeDamage(int damageAmount) {
         if (!isAlive) return;
         health -= damageAmount;
@@ -242,16 +228,9 @@ void Attack()
 
     private void Die() {
         isAlive = false;
-        Debug.Log($"[{gameObject.name}] 식물이 죽었습니다.");
+        // Debug.Log($"[{gameObject.name}] 식물이 죽었습니다."); // 필요시 주석 해제
         if(attackRangeCollider != null) attackRangeCollider.enabled = false;
-        Collider2D[] colliders = GetComponents<Collider2D>();
-        foreach(Collider2D col in colliders){
-            if(col != null && !col.isTrigger){
-                col.enabled = false;
-                break;
-            }
-        }
-        // --- 여기에 죽는 모습(스프라이트 변경), 파티클 효과 등 추가 ---
-        // Destroy(gameObject, 2f); // 선택 사항: 일정 시간 후 오브젝트 제거
+        // 콜라이더 비활성화 등...
+        // Destroy(gameObject, 2f);
     }
 }

@@ -148,4 +148,4 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   growthTime: 5
-  maturePlantPrefab: {fileID: 3921841857171051305, guid: b56a1aa9e61244e48bbf856cab9dde92, type: 3}
+  maturePlantPrefab: {fileID: 3921841857171051305, guid: 0dec0b2fc0a01b141b0aaad476372825, type: 3}

@@ -59,7 +59,7 @@ SpriteRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: a97c105638bdf8b4a8650670310a4cd3, type: 2}
+  - {fileID: 10754, guid: 0000000000000000f000000000000000, type: 0}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -81,7 +81,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 3
   m_Sprite: {fileID: 5522039419713709400, guid: 7b5f87be3f2415c498127429b9e30f7c, type: 3}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.7568628, g: 0.7568628, b: 0.7568628, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -182,6 +182,11 @@ MonoBehaviour:
   dropChance: 0.258
   minScrapDrop: 1
   maxScrapDrop: 1
+  flashColor: {r: 0.46336818, g: 1, b: 0, a: 1}
+  flashDuration: 1
+  flashEffectPrefab: {fileID: 5152549896807856912, guid: 9828a70f0349b124680582008cba65f4, type: 3}
+  hurtSound: {fileID: 8300000, guid: 37f39ad590454194997cc028a3df7b15, type: 3}
+  hurtSoundVolume: 1
 --- !u!114 &8139174750759230224
 MonoBehaviour:
   m_ObjectHideFlags: 0
