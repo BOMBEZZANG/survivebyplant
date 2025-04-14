@@ -1,78 +1,164 @@
 using UnityEngine;
-using System.Collections.Generic; // 배열이나 리스트 길이를 확인하기 위해 추가 (선택 사항)
+using System.Collections.Generic;
+using System.Linq; // Linq 사용을 위해 추가 (FirstOrDefault 등)
 
+// 날짜별 스폰 설정을 저장할 클래스
+[System.Serializable]
+public class NightSpawnSettings
+{
+    [Tooltip("이 설정이 적용될 시작 날짜")]
+    public int startDay = 1;
+    [Tooltip("이 설정이 적용될 마지막 날짜 (startDay와 같으면 해당 날짜 하루만 적용)")]
+    public int endDay = 1;
+
+    [Tooltip("이 밤에 스폰할 총 개미 수")]
+    public int totalAntsToSpawn = 10;
+    [Tooltip("이 밤의 개미 스폰 간격 (초)")]
+    public float spawnInterval = 5.0f;
+    [Tooltip("이 밤에 사용할 스폰 위치들 (Transform 리스트)")]
+    public List<Transform> spawnPoints; // 기존 Transform[] 대신 List<Transform> 사용
+}
 public class BugSpawner : MonoBehaviour
 {
-    [Header("Spawn Settings")]
+    [Header("기본 설정")]
     [Tooltip("생성할 개미 프리팹")]
-    public GameObject antPrefab;       // Inspector에서 연결할 개미 프리팹
+    public GameObject antPrefab;
 
-    // --- 수정: 단일 Transform 대신 Transform 배열 사용 ---
-    [Tooltip("개미가 생성될 수 있는 위치들 (Empty GameObject들의 Transform 연결)")]
-    public Transform[] spawnPoints;     // 여러 스폰 위치를 담을 배열
+    // --- 수정: 단일 설정 대신 날짜별 설정 리스트 사용 ---
+    [Header("날짜별 스폰 설정")]
+    [Tooltip("날짜별 스폰 설정을 추가하세요. 날짜 범위가 겹치지 않도록 주의하세요.")]
+    public List<NightSpawnSettings> nightSettingsList;
 
-    [Tooltip("개미 생성 간격 (초)")]
-    public float spawnInterval = 5.0f; // 개미 생성 주기
+    [Tooltip("위 리스트에 해당하지 않는 밤에 적용될 기본 설정")]
+    public NightSpawnSettings defaultNightSettings; // 기본값 설정
 
     // --- Private Variables ---
-    private float nextSpawnTime = 0f;  // 다음 개미가 생성될 시간
-    private int antCounter = 0;        // 생성된 개미 수를 세는 카운터 (고유 이름 부여용)
+    private NightSpawnSettings currentNightSettings; // 현재 밤에 적용될 설정
+    private int antsSpawnedThisNight = 0;   // 이번 밤에 스폰된 개미 수
+    private float nextSpawnTime = 0f;     // 다음 스폰 시간
+    private int antCounter = 0;           // 생성된 개미 고유 번호 카운터
+
+    void Start()
+    {
+        // TimeManager 이벤트 구독
+        TimeManager.OnNightStart += HandleNightStart;
+        TimeManager.OnDayStart += HandleDayStart; // 낮 시작 시 스폰 중지 및 리셋
+
+        // 초기 상태 설정 (게임 시작 시 낮일 수 있으므로)
+        HandleDayStart(); // 초기에는 스폰하지 않도록 설정
+    }
+
+    void OnDestroy() // 또는 OnDisable
+    {
+        // 게임 오브젝트 파괴 시 이벤트 구독 해제 (메모리 누수 방지)
+        TimeManager.OnNightStart -= HandleNightStart;
+        TimeManager.OnDayStart -= HandleDayStart;
+    }
+
+    // 밤 시작 시 호출될 함수
+    void HandleNightStart()
+    {
+        Debug.Log($"[{gameObject.name}] Night started for Day {TimeManager.Instance.currentDay}. Applying spawn settings.");
+        antsSpawnedThisNight = 0; // 밤 시작 시 스폰 카운트 초기화
+        currentNightSettings = GetSettingsForDay(TimeManager.Instance.currentDay); // 현재 날짜에 맞는 설정 가져오기
+
+        if (currentNightSettings == null)
+        {
+            Debug.LogWarning($"[{gameObject.name}] Day {TimeManager.Instance.currentDay}에 해당하는 NightSpawnSettings를 찾을 수 없습니다. 기본 설정을 사용합니다.");
+            currentNightSettings = defaultNightSettings; // 해당 날짜 설정 없으면 기본 설정 사용
+        }
+
+        if (currentNightSettings != null && currentNightSettings.totalAntsToSpawn > 0)
+        {
+            // 첫 스폰은 즉시 또는 약간의 딜레이 후 시작하도록 설정 (선택 사항)
+            // nextSpawnTime = Time.time; // 즉시 시작
+            nextSpawnTime = Time.time + Random.Range(0f, currentNightSettings.spawnInterval * 0.5f); // 약간 랜덤한 첫 스폰 딜레이
+            Debug.Log($"[{gameObject.name}] Settings applied: TotalAnts={currentNightSettings.totalAntsToSpawn}, Interval={currentNightSettings.spawnInterval}, SpawnPoints Count={currentNightSettings.spawnPoints?.Count ?? 0}");
+        }
+        else
+        {
+            Debug.Log($"[{gameObject.name}] 현재 밤({TimeManager.Instance.currentDay}일차) 또는 기본 설정에 스폰할 개미가 없거나 설정이 없습니다.");
+            currentNightSettings = null; // 스폰할 필요 없으면 null로 설정
+        }
+    }
+
+    // 낮 시작 시 호출될 함수
+    void HandleDayStart()
+    {
+        Debug.Log($"[{gameObject.name}] Day started. Stopping ant spawn for now.");
+        currentNightSettings = null; // 낮에는 스폰 설정 비활성화
+        antsSpawnedThisNight = 0;   // 스폰 카운트 리셋
+    }
+
+    // 현재 날짜에 맞는 설정을 찾는 함수
+    NightSpawnSettings GetSettingsForDay(int currentDay)
+    {
+        // Linq를 사용하여 현재 날짜가 startDay와 endDay 사이에 있는 첫 번째 설정을 찾음
+        return nightSettingsList.FirstOrDefault(settings => currentDay >= settings.startDay && currentDay <= settings.endDay);
+        // 만약 Linq를 사용하지 않으려면:
+        /*
+        foreach (NightSpawnSettings settings in nightSettingsList)
+        {
+            if (currentDay >= settings.startDay && currentDay <= settings.endDay)
+            {
+                return settings;
+            }
+        }
+        return null; // 맞는 설정이 없으면 null 반환
+        */
+    }
 
     void Update()
     {
-        // TimeManager가 존재하고 밤일 때만 스폰 로직 실행
-        if (TimeManager.Instance == null || !TimeManager.Instance.isNight)
+        // 현재 밤이고, 적용할 설정이 있으며, 아직 스폰할 개미가 남았는지 확인
+        if (TimeManager.Instance != null && TimeManager.Instance.isNight && currentNightSettings != null && antsSpawnedThisNight < currentNightSettings.totalAntsToSpawn)
         {
-            return; // TimeManager가 없거나 낮이면 아무것도 안 함
-        }
+            // 다음 스폰 시간이 되었는지 확인
+            if (Time.time >= nextSpawnTime)
+            {
+                SpawnAnt(); // 개미 생성
+                antsSpawnedThisNight++; // 스폰된 개미 수 증가
+                // 다음 스폰 시간 계산
+                nextSpawnTime = Time.time + currentNightSettings.spawnInterval;
 
-        // 현재 시간이 다음 생성 시간이거나 지났는지 확인
-        if (Time.time >= nextSpawnTime)
-        {
-            SpawnAnt(); // 개미 생성 함수 호출
-            // 다음 생성 시간 계산 및 업데이트
-            nextSpawnTime = Time.time + spawnInterval;
+                // 이번 스폰으로 목표치를 채웠는지 확인
+                if (antsSpawnedThisNight >= currentNightSettings.totalAntsToSpawn)
+                {
+                     Debug.Log($"[{gameObject.name}] Day {TimeManager.Instance.currentDay} 밤의 목표 개미 수({currentNightSettings.totalAntsToSpawn}) 스폰 완료.");
+                     // 선택: 여기서 currentNightSettings = null; 로 설정하여 더 이상 Update에서 체크 안하게 할 수도 있음
+                }
+            }
         }
     }
 
     void SpawnAnt()
     {
-        // --- 수정: 스폰 위치 배열 확인 및 랜덤 선택 로직 추가 ---
-
-        // 개미 프리팹이 할당되었는지, 스폰 위치 배열이 null이 아니고 최소 1개 이상의 위치가 있는지 확인
-        if (antPrefab != null && spawnPoints != null && spawnPoints.Length > 0)
+        // 현재 밤 설정과 스폰 위치 리스트 유효성 검사
+        if (antPrefab == null || currentNightSettings == null || currentNightSettings.spawnPoints == null || currentNightSettings.spawnPoints.Count == 0)
         {
-            // 0 부터 (배열 크기 - 1) 사이의 랜덤 정수 인덱스 생성
-            int randomIndex = Random.Range(0, spawnPoints.Length);
+            Debug.LogError($"[{gameObject.name}] SpawnAnt 실패: Prefab({antPrefab != null}), CurrentSettings({currentNightSettings != null}), SpawnPoints({currentNightSettings?.spawnPoints?.Count ?? 0}) 중 하나 이상이 유효하지 않습니다.");
+            // 스폰 실패 시 무한 루프 방지를 위해 다음 스폰 시간을 강제로 늦춤 (선택적)
+            nextSpawnTime = Time.time + (currentNightSettings?.spawnInterval ?? defaultNightSettings?.spawnInterval ?? 5.0f);
+            return;
+        }
 
-            // 랜덤하게 선택된 스폰 위치 Transform 가져오기
-            Transform selectedSpawnPoint = spawnPoints[randomIndex];
+        // 현재 설정에 지정된 스폰 위치 리스트에서 랜덤하게 하나 선택
+        int randomIndex = Random.Range(0, currentNightSettings.spawnPoints.Count);
+        Transform selectedSpawnPoint = currentNightSettings.spawnPoints[randomIndex];
 
-            // 선택된 스폰 위치가 null이 아닌지 한번 더 확인 (안전 장치)
-            if (selectedSpawnPoint != null)
-            {
-                // 선택된 위치에서 개미 프리팹을 복제하여 씬에 생성
-                GameObject newAnt = Instantiate(antPrefab, selectedSpawnPoint.position, selectedSpawnPoint.rotation);
-
-                // 카운터 증가 및 이름 부여
-                antCounter++;
-                newAnt.name = $"Ant_{antCounter}"; // 생성된 개미 오브젝트 이름 설정
-
-                // 생성 로그 (어디서 생성되었는지 포함)
-                Debug.Log($"Generated: {newAnt.name} at {selectedSpawnPoint.name} ({selectedSpawnPoint.position})");
-            }
-            else
-            {
-                Debug.LogError($"BugSpawner: SpawnPoints 배열의 {randomIndex} 인덱스가 null입니다!", gameObject);
-            }
+        // 선택된 스폰 위치가 유효한지 확인 (리스트 중간에 null이 들어간 경우 대비)
+        if (selectedSpawnPoint != null)
+        {
+            GameObject newAnt = Instantiate(antPrefab, selectedSpawnPoint.position, selectedSpawnPoint.rotation);
+            antCounter++;
+            newAnt.name = $"Ant_{antCounter}";
+            // Debug.Log($"Generated: {newAnt.name} at {selectedSpawnPoint.name} ({selectedSpawnPoint.position})"); // 이전 로그 레벨 조정
         }
         else
         {
-            // 필수 설정이 누락된 경우 에러 로그 출력
-            if(antPrefab == null)
-                Debug.LogError("BugSpawner: Ant Prefab이 설정되지 않았습니다!", gameObject);
-            if (spawnPoints == null || spawnPoints.Length == 0)
-                Debug.LogError("BugSpawner: Spawn Points 배열이 비어있거나 설정되지 않았습니다!", gameObject);
+            Debug.LogWarning($"[{gameObject.name}] 현재 밤 설정의 SpawnPoints 리스트 내 {randomIndex} 인덱스가 null입니다. 스폰을 건너<0xEB>뜁니다.");
+            // 선택적: 이 경우에도 nextSpawnTime을 늦춰서 무한 시도 방지
+             nextSpawnTime = Time.time + currentNightSettings.spawnInterval;
         }
     }
 }

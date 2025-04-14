@@ -184,12 +184,14 @@ MonoBehaviour:
   adultSprite: {fileID: -6506849127942263158, guid: 20d4513bcab1c4543a7d8600479bfcb9, type: 3}
   growthTime: 5
   maxGrowthStage: 1
-  maxDurability: 35
+  maxDurability: 55
   durabilityDecayPerSecond: 0.1
+  currentDurability: 0
   durabilityBarPrefab: {fileID: 758252197825889118, guid: be2a7e4515a99584d875dc7a2f23deae, type: 3}
   durabilityBarOffset: {x: 0, y: 1, z: 0}
   durabilityBarScale: {x: 1, y: 1.5}
   attackRangeCollider: {fileID: -6037514772907348365}
+  durabilityBarInstance: {fileID: 0}
 --- !u!95 &2403332822063715650
 Animator:
   serializedVersion: 7
