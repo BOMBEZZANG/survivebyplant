@@ -10,7 +10,8 @@ GameObject:
   m_Component:
   - component: {fileID: 9023981346571098991}
   - component: {fileID: 8403869138196351422}
-  - component: {fileID: -812141382475146921}
+  - component: {fileID: -6255040399422724119}
+  - component: {fileID: -8580472504604457666}
   - component: {fileID: 3857396847648812218}
   m_Layer: 9
   m_Name: seed
@@ -89,7 +90,7 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
---- !u!61 &-812141382475146921
+--- !u!61 &-6255040399422724119
 BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -135,6 +136,42 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 0.32, y: 0.32}
   m_EdgeRadius: 0
+--- !u!58 &-8580472504604457666
+CircleCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1092329325203652457}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ForceSendLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ForceReceiveLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ContactCaptureLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_CallbackLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_IsTrigger: 1
+  m_UsedByEffector: 0
+  m_CompositeOperation: 0
+  m_CompositeOrder: 0
+  m_Offset: {x: 0, y: 0}
+  m_Radius: 0.5
 --- !u!114 &3857396847648812218
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -152,3 +189,4 @@ MonoBehaviour:
   resourceCost: 1
   wateringSound: {fileID: 8300000, guid: bd6f3a941b871594eb0834d6b81f42b2, type: 3}
   wateringSoundVolume: 1
+  highlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}

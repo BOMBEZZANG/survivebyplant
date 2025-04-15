@@ -1,104 +1,138 @@
 using UnityEngine;
 
-// 이 스크립트는 Rigidbody2D 컴포넌트가 반드시 필요함을 명시
 [RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(AudioSource))] // AudioSource도 필수 컴포넌트로 추가
 public class PlayerMovement : MonoBehaviour
 {
     [Header("Movement Settings")]
     [Tooltip("플레이어의 이동 속도")]
-    public float moveSpeed = 5f; // Inspector에서 이 값이 0보다 큰지 확인하세요!
+    public float moveSpeed = 5f;
+
+    // --- 사운드 관련 변수 추가 ---
+    [Header("Audio Settings")]
+    [Tooltip("재생할 발걸음 소리 오디오 클립 배열")]
+    public AudioClip[] footstepSounds; // 여러 발걸음 소리 저장 가능
+    [Tooltip("발걸음 소리 재생 간격 (초)")]
+    public float footstepInterval = 0.4f; // 이 시간마다 소리 재생 시도
+    [Range(0f, 1f)]
+    [Tooltip("발걸음 소리 볼륨")]
+    public float footstepVolume = 0.8f;
 
     [Header("Initialization")]
     [Tooltip("플레이어가 게임 시작 시 생성될 위치 (씬에 빈 게임오브젝트 배치 후 연결)")]
-    public Transform startPosition; // 시작 위치 지정용 Transform
+    public Transform startPosition;
 
     // --- Private Variables ---
-    private Rigidbody2D rb;       // Rigidbody2D 컴포넌트 참조 저장용
-    private Vector2 movement; // 매 프레임 입력 값을 저장할 변수
+    private Rigidbody2D rb;
+    private Vector2 movement;
+    private AudioSource audioSource; // AudioSource 컴포넌트 참조
+    private float nextFootstepTime = 0f; // 다음 발걸음 소리 재생 시간
 
-    // 게임 오브젝트가 활성화될 때 또는 게임 시작 시 호출됨
+    // Start 함수는 System.Obsolete 경고가 있으므로 Awake로 변경 권장
     [System.Obsolete]
-    void Start()
+    void Awake() // Start 대신 Awake 사용
     {
-        // Rigidbody2D 컴포넌트 가져오기
         rb = GetComponent<Rigidbody2D>();
-        // 만약 Rigidbody2D가 없다면 에러 로그 출력 및 스크립트 비활성화
+        audioSource = GetComponent<AudioSource>(); // AudioSource 컴포넌트 가져오기
+
         if (rb == null)
         {
             Debug.LogError("PlayerMovement requires a Rigidbody2D component!", gameObject);
-            enabled = false; // 스크립트 작동 중지
+            enabled = false;
             return;
         }
+        // --- AudioSource 확인 추가 ---
+        if (audioSource == null)
+        {
+            Debug.LogError("PlayerMovement requires an AudioSource component!", gameObject);
+            enabled = false;
+            return;
+        }
+        // --- 사운드 배열 확인 ---
+        if (footstepSounds == null || footstepSounds.Length == 0)
+        {
+             Debug.LogWarning("PlayerMovement: Footstep Sounds 배열이 비어있거나 할당되지 않았습니다. 발걸음 소리가 재생되지 않습니다.", gameObject);
+        }
 
-        // 2D 탑다운 또는 유사 환경에서는 중력 영향 안 받도록 설정
         rb.gravityScale = 0f;
-        // 물리 효과로 인해 의도치 않게 회전하는 것을 방지 (필요 없다면 주석 처리)
         rb.freezeRotation = true;
 
-        // 시작 위치 설정 (startPosition 변수가 Inspector에서 할당되었다면)
         if (startPosition != null)
         {
-            transform.position = startPosition.position; // 지정된 위치로 플레이어 이동
-            //Debug.Log($"플레이어 위치를 {startPosition.position} 로 설정했습니다.", gameObject);
+            transform.position = startPosition.position;
         }
         else
         {
-            // 시작 위치가 지정되지 않았다면 경고 로그 출력
             Debug.LogWarning("PlayerMovement: 시작 위치(startPosition)가 지정되지 않았습니다! 현재 위치에서 시작합니다.", gameObject);
         }
 
-        // 중요: 게임 시작 시 이전 프레임의 물리 효과가 남아있을 수 있으므로 속도 초기화
-        rb.velocity = Vector2.zero;        // 선형 속도 초기화 (linearVelocity와 동일하게 작동)
-        rb.angularVelocity = 0f;           // 각속도(회전 속도) 초기화
+        rb.velocity = Vector2.zero;
+        rb.angularVelocity = 0f;
 
-        Debug.Log("PlayerMovement Start() 완료. 플레이어 위치: " + transform.position);
+        // Debug.Log("PlayerMovement Awake() 완료. 플레이어 위치: " + transform.position);
     }
 
-    // 매 프레임 호출됨 (주로 입력 처리)
+    [System.Obsolete]
     void Update()
     {
-        // 키보드 W, A, S, D 또는 방향키 입력 받기 (-1, 0, 1 값)
-        movement.x = Input.GetAxisRaw("Horizontal"); // 좌/우 입력
-        movement.y = Input.GetAxisRaw("Vertical");   // 상/하 입력
+        // 입력 처리
+        movement.x = Input.GetAxisRaw("Horizontal");
+        movement.y = Input.GetAxisRaw("Vertical");
 
-        // --- 디버깅 로그: 입력 값 확인 (필요시 주석 해제) ---
-        // 입력 벡터의 제곱 크기가 0보다 약간 클 때 (즉, 입력이 있을 때) 로그 출력
-        // if (movement.sqrMagnitude > 0.01f)
-        // {
-        //      Debug.Log($"Movement Input: ({movement.x}, {movement.y})");
-        // }
-        // --- 로그 끝 ---
+        // --- 발걸음 소리 재생 로직 ---
+        HandleFootstepSounds();
     }
 
-    // 고정된 시간 간격으로 호출됨 (주로 물리 관련 처리)
+    // FixedUpdate는 물리 처리 유지
     [System.Obsolete]
     void FixedUpdate()
     {
-        // Rigidbody가 없는 경우를 대비한 안전 체크
         if (rb == null) return;
 
-        // 이동 방향 벡터 정규화 (대각선 이동 시 속도가 빨라지는 것 방지)
-        // .normalized 는 벡터의 크기를 1로 만듭니다 (방향 정보만 남김).
         Vector2 targetVelocity = movement.normalized * moveSpeed;
-
-        // Rigidbody의 속도(velocity)를 직접 설정하여 이동시킴
         rb.velocity = targetVelocity;
 
-        // --- 디버깅 로그: 설정된 속도 및 실제 속도 확인 (활성화!) ---
-        // 움직임이 있을 때만 (목표 속도가 0이 아닐 때) 로그를 출력하여 콘솔 오염 방지
-        if (targetVelocity.sqrMagnitude > 0.01f)
+        // 디버깅 로그는 필요시 주석 해제
+        // if (targetVelocity.sqrMagnitude > 0.01f) { ... }
+    }
+
+    // 발걸음 소리 처리 함수
+    [System.Obsolete]
+    void HandleFootstepSounds()
+    {
+        // 필수 요소 없으면 실행 중단
+        if (audioSource == null || footstepSounds == null || footstepSounds.Length == 0) return;
+
+        // 플레이어가 움직이고 있는지 확인 (속도 기준)
+        // magnitude 비교보다 sqrMagnitude가 약간 더 효율적
+        // 0.01f 같은 작은 값(threshold)보다 큰지 비교하여 거의 멈춘 상태는 제외
+        bool isMoving = rb.velocity.sqrMagnitude > 0.1f * 0.1f; // 속도의 제곱이 0.01보다 큰가?
+
+        if (isMoving)
         {
-            // 소수점 두 자리까지만 표시하여 가독성 높임 (선택 사항)
-            string targetVelStr = $"({targetVelocity.x:F2}, {targetVelocity.y:F2})";
-            string currentVelStr = $"({rb.velocity.x:F2}, {rb.velocity.y:F2})";
-            // 설정하려는 속도와, 설정 직후 Rigidbody의 실제 속도를 로그로 출력
-           // Debug.Log($"Setting Velocity: {targetVelStr} | Current Velocity After Set: {currentVelStr}", gameObject);
+            // 현재 시간이 다음 소리 재생 시간이거나 지났는지 확인
+            if (Time.time >= nextFootstepTime)
+            {
+                // 배열에서 랜덤하게 발걸음 소리 선택
+                int randomIndex = Random.Range(0, footstepSounds.Length);
+                AudioClip clipToPlay = footstepSounds[randomIndex];
+
+                // 선택된 클립이 null이 아니면 재생
+                if (clipToPlay != null)
+                {
+                    // PlayOneShot: 여러 소리가 겹쳐서 재생될 수 있음 (발걸음에 적합)
+                    audioSource.PlayOneShot(clipToPlay, footstepVolume);
+                }
+
+                // 다음 재생 시간 업데이트
+                nextFootstepTime = Time.time + footstepInterval;
+            }
         }
-        // (선택 사항) 입력이 없을 때 즉시 멈추게 하려면 아래 주석 해제
-        // else if (rb.velocity.sqrMagnitude > 0.01f) // 입력은 없는데 속도가 남아있다면
+        // (선택적) 움직이지 않을 때 다음 재생 시간을 현재 시간으로 리셋하여
+        // 다시 움직이기 시작할 때 바로 소리가 나도록 할 수 있음
+        // else
         // {
-        //    rb.velocity = Vector2.zero; // 속도를 0으로 만들어 즉시 멈춤
+        //     nextFootstepTime = Time.time; // 멈추면 타이머 리셋
         // }
-        // --- 로그 끝 ---
     }
 }

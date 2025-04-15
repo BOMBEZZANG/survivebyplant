@@ -1,13 +1,15 @@
-using System.Collections;
 using UnityEngine;
+using System.Collections; // 코루틴 사용을 위해 필요
 
+// RequireComponent는 그대로 유지, IInteractable 인터페이스 구현 추가
 [RequireComponent(typeof(Collider2D))]
 [RequireComponent(typeof(SpriteRenderer))]
-public class SeedPodInteraction : MonoBehaviour
+public class SeedPodInteraction : MonoBehaviour, IInteractable // , IInteractable 추가
 {
+    // --- 기존 변수들은 대부분 그대로 사용 ---
     [Header("Interaction Settings")]
-    [Tooltip("플레이어가 상호작용 가능한 최대 거리")]
-    public float interactionRange = 1.0f;
+    // [Tooltip("플레이어가 상호작용 가능한 최대 거리")] // 이제 PlayerInteraction.cs 에서 관리
+    // public float interactionRange = 1.0f;
     [Tooltip("플레이어가 범위 내에 있을 때 하이라이트할 색상")]
     public Color highlightColor = Color.yellow;
 
@@ -22,7 +24,6 @@ public class SeedPodInteraction : MonoBehaviour
     public GameObject seedPickupPrefab;
     [Tooltip("씨앗 아이템이 튀어나오는 힘의 크기")]
     public float spawnForce = 1.5f;
-    // ===>>> 추가: 최대 생성 개수 <<<===
     [Tooltip("이 주머니에서 생성될 최대 씨앗 개수")]
     public int maxSeedsToProduce = 5;
 
@@ -30,20 +31,34 @@ public class SeedPodInteraction : MonoBehaviour
     [Tooltip("한 번 상호작용 후 다음 가능할 때까지 걸리는 시간 (초)")]
     public float cooldownTime = 3.0f;
 
-    // ===>>> 추가: 빈 주머니 스프라이트 <<<===
     [Header("Visuals")]
     [Tooltip("씨앗이 다 떨어졌을 때 표시할 스프라이트")]
     public Sprite emptyPodSprite;
+     // (선택) 흔들기 성공 시 사운드
+    [Tooltip("씨앗 획득 성공 시 재생할 사운드 (선택 사항)")]
+    public AudioClip shakeSound;
+    [Range(0f, 1f)]
+    public float shakeSoundVolume = 1.0f;
 
     // --- 내부 작동 변수들 ---
     private Vector3 originalPosition;
     private bool canShake = true;
-    private bool isPlayerInRange = false;
+    // private bool isPlayerInRange = false; // 이제 PlayerInteraction이 거리 관리
     private SpriteRenderer spriteRenderer;
     private Color originalColor;
-    // ===>>> 추가: 생성된 씨앗 개수 카운터 <<<===
     private int seedsProducedCount = 0;
-    private bool isEmpty = false; // 주머니가 비었는지 상태 저장
+    private bool isEmpty = false;
+
+    // --- IInteractable 인터페이스 구현 ---
+    public string InteractionPrompt
+    {
+        get
+        {
+            if (isEmpty) return "Empty Seed Pod";
+            if (!canShake) return "Seed Pod (Recharging)";
+            return "Shake for Seeds"; // 상호작용 가능 시 표시될 텍스트
+        }
+    }
 
     void Start()
     {
@@ -57,63 +72,96 @@ public class SeedPodInteraction : MonoBehaviour
         else
         {
             Debug.LogError($"[{gameObject.name}] SpriteRenderer not found!", gameObject);
-            canShake = false; // 스프라이트 없으면 작동 불가
+            canShake = false;
         }
 
         if (seedPickupPrefab == null)
         {
             Debug.LogError($"[{gameObject.name}] SeedPickup Prefab is not assigned!", gameObject);
-            canShake = false; // 프리팹 없으면 작동 불가
+            canShake = false;
         }
 
-        // ===>>> 추가: 초기 상태 업데이트 <<<===
-        // 게임 시작 시 이미 최대 개수에 도달했는지 확인 (예: maxSeedsToProduce가 0인 경우)
         if (seedsProducedCount >= maxSeedsToProduce)
         {
-            SetEmptyState(); // 비어있는 상태로 즉시 전환
+            SetEmptyState();
         }
         else
         {
             isEmpty = false;
-            canShake = true; // 시작 시 흔들 수 있도록 초기화
+            canShake = true;
         }
 
-        CheckColliderSetup();
+        // 콜라이더 설정 확인 (Trigger여야 하이라이트 작동)
+        Collider2D col = GetComponent<Collider2D>();
+        if (col == null) {
+             Debug.LogError($"[{gameObject.name}] Collider2D가 없습니다! 하이라이트 및 상호작용이 불가능합니다.", gameObject);
+             enabled = false;
+        } else if (!col.isTrigger) {
+             Debug.LogWarning($"[{gameObject.name}] Collider2D의 IsTrigger가 꺼져있습니다. 하이라이트(OnTriggerEnter/Exit)가 작동하지 않을 수 있습니다.", gameObject);
+        }
     }
 
-    void OnMouseDown()
+    // --- 제거: OnMouseDown 함수 ---
+    // void OnMouseDown() { ... }
+
+    // --- 추가: IInteractable 인터페이스의 Interact 메서드 ---
+    public void Interact(GameObject interactor) // PlayerInteraction 스크립트가 호출
     {
-        // ===>>> 수정: 비어있는지 확인 조건 추가 <<<===
-        if (!isEmpty && isPlayerInRange && canShake && seedPickupPrefab != null)
-        {
-            // Debug.Log($"[{gameObject.name}] Starting shake sequence..."); // 필요시 주석 해제
-            canShake = false; // 즉시 다시 못 흔들게 상태 변경
-            StartCoroutine(ShakeSequence());
-        }
-        // else if (isEmpty) Debug.Log("Seed pod is empty."); // 필요시 주석 해제
-        // else if (!isPlayerInRange) Debug.Log("Player too far."); // 필요시 주석 해제
-        // else if (!canShake) Debug.Log("On cooldown."); // 필요시 주석 해제
+         Debug.Log($"[{gameObject.name}] Interact() called by {interactor.name}");
+
+         // 비어있거나 쿨다운 중이면 실행 안 함
+         if (isEmpty)
+         {
+             Debug.Log($"[{gameObject.name}] Interaction ignored: Pod is empty.");
+             // 여기에 '빈 주머니' 효과음 등 추가 가능
+             return;
+         }
+         if (!canShake)
+         {
+             Debug.Log($"[{gameObject.name}] Interaction ignored: Pod is on cooldown.");
+             // 여기에 '쿨다운 중' 효과음 등 추가 가능
+             return;
+         }
+
+         // 거리 체크는 PlayerInteraction.cs에서 이미 했으므로 여기서는 생략
+
+         // 씨앗 생성 및 흔들림 코루틴 시작
+         if (seedPickupPrefab != null)
+         {
+             Debug.Log($"[{gameObject.name}] Starting shake sequence via E key interaction...");
+             canShake = false; // 즉시 다시 못 흔들게
+             StartCoroutine(ShakeSequence());
+         }
+         else
+         {
+             Debug.LogError($"[{gameObject.name}] Cannot start shake sequence, seedPickupPrefab is null!", gameObject);
+         }
     }
 
+
+    // ShakeSequence 코루틴은 이전과 동일 (씨앗 생성, 상태 업데이트, 쿨다운 시작)
     IEnumerator ShakeSequence()
     {
-        // --- 흔들림 효과 부분 (변경 없음) ---
+        // --- 흔들림 효과 부분 ---
         float elapsed = 0.0f;
+        Vector3 startPos = transform.position; // 흔들기 전 위치 저장
         while (elapsed < shakeDuration)
         {
             float xOffset = Random.Range(-0.5f, 0.5f) * shakeMagnitude;
             float yOffset = Random.Range(-0.5f, 0.5f) * shakeMagnitude;
-            transform.position = originalPosition + new Vector3(xOffset, yOffset, 0);
+            // originalPosition 대신 startPos 기준으로 흔들리도록 수정 (더 자연스러움)
+            transform.position = startPos + new Vector3(xOffset, yOffset, 0);
             elapsed += Time.deltaTime;
             yield return null;
         }
-        transform.position = originalPosition;
+        transform.position = startPos; // 원래 위치로 복구
         // --- 흔들림 효과 끝 ---
+
 
         // --- 씨앗 생성 및 상태 업데이트 ---
         if (seedPickupPrefab != null)
         {
-             Vector3 spawnPosition = transform.position + Vector3.up * 0.2f;
+             Vector3 spawnPosition = transform.position + Vector3.up * 0.2f; // 스폰 위치 조정 가능
              GameObject pickupInstance = Instantiate(seedPickupPrefab, spawnPosition, Quaternion.identity);
              Rigidbody2D pickupRb = pickupInstance.GetComponent<Rigidbody2D>();
 
@@ -124,68 +172,56 @@ public class SeedPodInteraction : MonoBehaviour
                   pickupRb.AddForce(forceDirection * spawnForce, ForceMode2D.Impulse);
              }
 
-             // ===>>> 수정: 카운터 증가 및 최대치 확인 <<<===
+             // --- 추가: 흔들기 성공 사운드 재생 ---
+             if (shakeSound != null)
+             {
+                 AudioSource.PlayClipAtPoint(shakeSound, transform.position, shakeSoundVolume);
+             }
+             // ----------------------------------
+
              seedsProducedCount++;
              Debug.Log($"[{gameObject.name}] Seed produced. Count: {seedsProducedCount}/{maxSeedsToProduce}");
 
-             // 최대 개수에 도달했는지 확인
              if (seedsProducedCount >= maxSeedsToProduce)
              {
                  Debug.Log($"[{gameObject.name}] Max seeds produced. Setting to empty state.");
-                 SetEmptyState(); // 비어있는 상태로 전환 (더 이상 Cooldown 시작 안 함)
+                 SetEmptyState(); // 여기서 쿨다운 코루틴 시작 안 함
              }
              else
              {
-                 // 최대 개수에 도달하지 않았으면 쿨다운 시작
-                 StartCoroutine(Cooldown());
+                 StartCoroutine(Cooldown()); // 아직 씨앗 남았으면 쿨다운 시작
              }
-             // ===>>> 수정 끝 <<<===
-        } else {
+        }
+        else
+        {
              Debug.LogError($"[{gameObject.name}] Cannot instantiate SeedPickup, prefab is null!", gameObject);
-             // 이 경우, 이미 canShake가 false이므로 추가 동작 없음
         }
     }
 
+    // Cooldown 코루틴 (변경 없음)
     IEnumerator Cooldown()
     {
-        // Debug.Log($"[{gameObject.name}] Cooldown started ({cooldownTime}s)."); // 필요시 주석 해제
         yield return new WaitForSeconds(cooldownTime);
-        // ===>>> 수정: 비어있지 않을 때만 흔들 수 있게 복구 <<<===
-        if (!isEmpty)
-        {
-            canShake = true;
-            // Debug.Log($"[{gameObject.name}] Cooldown finished. canShake = true."); // 필요시 주석 해제
-        } else {
-             // Debug.Log($"[{gameObject.name}] Cooldown finished, but pod is empty. canShake remains false."); // 필요시 주석 해제
-        }
+        if (!isEmpty) { canShake = true; }
     }
 
-    // ===>>> 추가: 비어있는 상태로 전환하는 함수 <<<===
+    // SetEmptyState 함수 (변경 없음)
     void SetEmptyState()
     {
-        isEmpty = true; // 상태 플래그 설정
-        canShake = false; // 영구적으로 흔들기 불가
-
-        // 스프라이트 변경
-        if (spriteRenderer != null && emptyPodSprite != null)
-        {
-            spriteRenderer.sprite = emptyPodSprite;
-        }
-
-        // 하이라이트 제거 (만약 플레이어가 범위 안에 있다면)
-        if (spriteRenderer != null)
-        {
-            spriteRenderer.color = originalColor; // 원래 색상으로 (또는 빈 주머니 스프라이트의 기본 색상)
-        }
+        isEmpty = true;
+        canShake = false;
+        if (spriteRenderer != null && emptyPodSprite != null) { spriteRenderer.sprite = emptyPodSprite; }
+        // 하이라이트 제거는 OnTriggerExit2D에서도 처리되므로 여기서 중복될 수 있음
+        // if (spriteRenderer != null) { spriteRenderer.color = originalColor; }
     }
 
-    // ===>>> 수정: 트리거 로직에서 isEmpty 상태 확인 <<<===
+    // OnTriggerEnter2D (하이라이트 시작 - 변경 없음)
     void OnTriggerEnter2D(Collider2D other)
     {
         if (other.CompareTag("Player"))
         {
-            isPlayerInRange = true;
-            // 비어있지 않고, 스프라이트 렌더러가 있을 때만 하이라이트
+            // isPlayerInRange = true; // 이 플래그는 더 이상 사용하지 않음
+            // 비어있지 않고 스프라이트 렌더러가 있을 때만 하이라이트
             if (!isEmpty && spriteRenderer != null)
             {
                 spriteRenderer.color = highlightColor;
@@ -193,25 +229,20 @@ public class SeedPodInteraction : MonoBehaviour
         }
     }
 
+    // OnTriggerExit2D (하이라이트 종료 - isPlayerInRange 제거)
     void OnTriggerExit2D(Collider2D other)
     {
         if (other.CompareTag("Player"))
         {
-            isPlayerInRange = false;
-            // 비어있는 상태와 관계없이 원래 색상으로 복원 (SetEmptyState에서 색상을 관리할 수도 있음)
+            // isPlayerInRange = false; // 이 플래그는 더 이상 사용하지 않음
+            // 원래 색상으로 복원
             if (spriteRenderer != null)
             {
-                // 만약 SetEmptyState에서 색상 변경을 안했다면 여기서 해야함
-                // 지금은 SetEmptyState와 여기가 모두 originalColor로 설정하므로 괜찮음
-                 if (!isEmpty) // 비어있지 않을때만 원래색 복원 (비어있으면 빈 스프라이트 색 유지)
-                 {
-                     spriteRenderer.color = originalColor;
-                 }
-                 // 혹은 간단하게: spriteRenderer.color = originalColor; (SetEmptyState에서 색 변경 안할 경우)
+                spriteRenderer.color = originalColor; // 비어있는 상태 포함 원래 색상으로 (빈 스프라이트 기준)
             }
         }
     }
 
-    // 디버깅용 콜라이더 설정 확인 함수 (변경 없음)
-    void CheckColliderSetup() { /* ... 이전 코드 ... */ }
+    // CheckColliderSetup 함수는 디버깅용으로 그대로 둘 수 있음
+    // void CheckColliderSetup() { ... }
 }
