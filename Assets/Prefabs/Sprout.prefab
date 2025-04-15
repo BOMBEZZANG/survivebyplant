@@ -155,6 +155,8 @@ MonoBehaviour:
   growSoundVolume: 1
   growthParticlePrefab: {fileID: 0}
   highlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  requirementUIPrefab: {fileID: 991020210539611631, guid: 14c4ce05e649f244190140d7625f6177, type: 3}
+  uiOffset: {x: 0, y: 0.8, z: 0}
 --- !u!58 &2598770156520530581
 CircleCollider2D:
   m_ObjectHideFlags: 0

@@ -190,3 +190,5 @@ MonoBehaviour:
   wateringSound: {fileID: 8300000, guid: bd6f3a941b871594eb0834d6b81f42b2, type: 3}
   wateringSoundVolume: 1
   highlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  requirementUIPrefab: {fileID: 991020210539611631, guid: 14c4ce05e649f244190140d7625f6177, type: 3}
+  uiOffset: {x: 0, y: 0.6, z: 0}

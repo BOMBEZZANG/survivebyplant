@@ -192,5 +192,5 @@ MonoBehaviour:
   maxSeedsToProduce: 2
   cooldownTime: 5
   emptyPodSprite: {fileID: 1229923417453695349, guid: 9425db8c62066da42900185e3880c5f2, type: 3}
-  shakeSound: {fileID: 8300000, guid: 06b026c2e96709f42984d2305ed3753a, type: 3}
+  shakeSound: {fileID: 8300000, guid: d0342bf2b1faed042aec9c3149c889d4, type: 3}
   shakeSoundVolume: 1

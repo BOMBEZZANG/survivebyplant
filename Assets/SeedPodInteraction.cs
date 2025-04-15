@@ -101,9 +101,6 @@ public class SeedPodInteraction : MonoBehaviour, IInteractable // , IInteractabl
         }
     }
 
-    // --- 제거: OnMouseDown 함수 ---
-    // void OnMouseDown() { ... }
-
     // --- 추가: IInteractable 인터페이스의 Interact 메서드 ---
     public void Interact(GameObject interactor) // PlayerInteraction 스크립트가 호출
     {
@@ -138,10 +135,17 @@ public class SeedPodInteraction : MonoBehaviour, IInteractable // , IInteractabl
          }
     }
 
-
-    // ShakeSequence 코루틴은 이전과 동일 (씨앗 생성, 상태 업데이트, 쿨다운 시작)
+    // 수정된 ShakeSequence 코루틴 - 효과음 재생 타이밍 변경
     IEnumerator ShakeSequence()
     {
+        // --- 흔들기 시작 시 효과음 재생 (여기로 이동) ---
+        if (shakeSound != null)
+        {
+            AudioSource.PlayClipAtPoint(shakeSound, transform.position, shakeSoundVolume);
+            Debug.Log($"[{gameObject.name}] 흔들기 효과음 재생 시작");
+        }
+        // ------------------------------------------
+
         // --- 흔들림 효과 부분 ---
         float elapsed = 0.0f;
         Vector3 startPos = transform.position; // 흔들기 전 위치 저장
@@ -157,7 +161,6 @@ public class SeedPodInteraction : MonoBehaviour, IInteractable // , IInteractabl
         transform.position = startPos; // 원래 위치로 복구
         // --- 흔들림 효과 끝 ---
 
-
         // --- 씨앗 생성 및 상태 업데이트 ---
         if (seedPickupPrefab != null)
         {
@@ -172,12 +175,7 @@ public class SeedPodInteraction : MonoBehaviour, IInteractable // , IInteractabl
                   pickupRb.AddForce(forceDirection * spawnForce, ForceMode2D.Impulse);
              }
 
-             // --- 추가: 흔들기 성공 사운드 재생 ---
-             if (shakeSound != null)
-             {
-                 AudioSource.PlayClipAtPoint(shakeSound, transform.position, shakeSoundVolume);
-             }
-             // ----------------------------------
+             // --- 효과음 재생 코드 제거 (위로 이동) ---
 
              seedsProducedCount++;
              Debug.Log($"[{gameObject.name}] Seed produced. Count: {seedsProducedCount}/{maxSeedsToProduce}");
@@ -243,6 +241,30 @@ public class SeedPodInteraction : MonoBehaviour, IInteractable // , IInteractabl
         }
     }
 
-    // CheckColliderSetup 함수는 디버깅용으로 그대로 둘 수 있음
-    // void CheckColliderSetup() { ... }
+    // 디버깅용 Gizmos 추가 (선택 사항)
+    void OnDrawGizmos()
+    {
+        // 인터랙션 범위 표시 (삭제된 변수라 비활성화)
+        // Gizmos.color = Color.yellow;
+        // Gizmos.DrawWireSphere(transform.position, interactionRange);
+        
+        // 콜라이더 시각화
+        Collider2D col = GetComponent<Collider2D>();
+        if (col != null)
+        {
+            Gizmos.color = col.isTrigger ? Color.green : Color.red;
+            if (col is BoxCollider2D)
+            {
+                BoxCollider2D boxCol = col as BoxCollider2D;
+                Vector3 size = new Vector3(boxCol.size.x, boxCol.size.y, 0.1f);
+                Vector3 center = transform.position + (Vector3)boxCol.offset;
+                Gizmos.DrawWireCube(center, size);
+            }
+            else if (col is CircleCollider2D)
+            {
+                CircleCollider2D circleCol = col as CircleCollider2D;
+                Gizmos.DrawWireSphere(transform.position + (Vector3)circleCol.offset, circleCol.radius);
+            }
+        }
+    }
 }

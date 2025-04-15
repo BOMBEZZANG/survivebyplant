@@ -4,15 +4,14 @@ using System;
 public class PlayerInventory : MonoBehaviour
 {
     [Header("Inventory Counts")]
-    [Tooltip("플레이어가 현재 가지고 있는 씨앗의 개수")]
     public int seedCount = 0;
-
-    [Tooltip("플레이어가 현재 가지고 있는 키틴 조각의 개수")]
     public int chitinCount = 0;
-
-    // --- 물 자원 추가 ---
-    [Tooltip("플레이어가 현재 가지고 있는 물의 양")]
-    public int waterCount = 0; // 물 개수 추가 (초기값은 0 또는 테스트용 값 설정)
+    public int waterCount = 0;
+    // --- 새로운 자원 변수 추가 ---
+    public int woodCount = 0;
+    public int stoneCount = 0;
+    public int fiberCount = 0;
+    // --------------------------
 
     public event Action OnInventoryChanged;
     private bool hasPickedUpFirstSeed = false;
@@ -20,12 +19,11 @@ public class PlayerInventory : MonoBehaviour
 
     void Start()
     {
-        // 예시: 테스트를 위해 시작 시 물 5개 지급 (나중에 제거하거나 조절)
-        //waterCount = 5;
-        //Debug.Log($"초기 물 보유량: {waterCount}");
-        // ------------------
-
-        OnInventoryChanged?.Invoke();
+        // 초기값 설정은 여기서 하거나 Inspector에서 직접 설정
+        // woodCount = 5; // 테스트용 초기값
+        // stoneCount = 3;
+        // fiberCount = 10;
+        OnInventoryChanged?.Invoke(); // 초기 UI 업데이트 호출
     }
 
     public bool AddResource(string resourceType, int amount)
@@ -47,13 +45,28 @@ public class PlayerInventory : MonoBehaviour
                 Debug.Log($"Collected {amount} Chitin Scrap. Total: {chitinCount}");
                 changed = true;
                 break;
-            // --- 물 추가 로직 ---
             case "Water":
                 waterCount += amount;
                 Debug.Log($"Collected {amount} Water. Total: {waterCount}");
                 changed = true;
                 break;
-            // -----------------
+            // --- 새로운 자원 추가 로직 ---
+            case "Wood":
+                woodCount += amount;
+                Debug.Log($"Collected {amount} Wood. Total: {woodCount}");
+                changed = true;
+                break;
+            case "Stone":
+                stoneCount += amount;
+                Debug.Log($"Collected {amount} Stone. Total: {stoneCount}");
+                changed = true;
+                break;
+            case "Fiber":
+                fiberCount += amount;
+                Debug.Log($"Collected {amount} Fiber. Total: {fiberCount}");
+                changed = true;
+                break;
+            // --------------------------
             default:
                 Debug.LogWarning($"AddResource: Unknown resource type '{resourceType}'");
                 return false;
@@ -61,11 +74,7 @@ public class PlayerInventory : MonoBehaviour
 
         if (changed) {
             OnInventoryChanged?.Invoke();
-            if (collectedSeed)
-            {
-                hasPickedUpFirstSeed = true;
-                OnFirstSeedCollected?.Invoke();
-            }
+            if (collectedSeed) { /* ... */ }
         }
         return true;
     }
@@ -78,39 +87,34 @@ public class PlayerInventory : MonoBehaviour
          switch (resourceType)
          {
              case "Seed":
-                 if (seedCount >= amount) {
-                     seedCount -= amount;
-                     Debug.Log($"Used {amount} Seed. Remaining: {seedCount}");
-                     changed = true;
-                 } else { return false; }
+                 if (seedCount >= amount) { seedCount -= amount; changed = true; } else { return false; }
                  break;
              case "ChitinScrap":
-                 if (chitinCount >= amount) {
-                     chitinCount -= amount;
-                     Debug.Log($"Used {amount} Chitin Scrap. Remaining: {chitinCount}");
-                     changed = true;
-                 } else { return false; }
+                 if (chitinCount >= amount) { chitinCount -= amount; changed = true; } else { return false; }
                  break;
-            // --- 물 사용 로직 ---
             case "Water":
-                 if (waterCount >= amount) {
-                     waterCount -= amount;
-                     Debug.Log($"Used {amount} Water. Remaining: {waterCount}");
-                     changed = true;
-                 } else {
-                     Debug.Log("물이 부족합니다."); // 물 부족 시 메시지 추가
-                     return false;
-                 }
+                 if (waterCount >= amount) { waterCount -= amount; changed = true; } else { Debug.Log("물이 부족합니다."); return false; }
                  break;
-            // -----------------
+            // --- 새로운 자원 사용 로직 ---
+            case "Wood":
+                 if (woodCount >= amount) { woodCount -= amount; changed = true; Debug.Log($"Used {amount} Wood. Remaining: {woodCount}"); }
+                 else { Debug.LogWarning($"Not enough Wood. Required: {amount}, Have: {woodCount}"); return false; }
+                 break;
+            case "Stone":
+                 if (stoneCount >= amount) { stoneCount -= amount; changed = true; Debug.Log($"Used {amount} Stone. Remaining: {stoneCount}"); }
+                 else { Debug.LogWarning($"Not enough Stone. Required: {amount}, Have: {stoneCount}"); return false; }
+                 break;
+            case "Fiber":
+                 if (fiberCount >= amount) { fiberCount -= amount; changed = true; Debug.Log($"Used {amount} Fiber. Remaining: {fiberCount}"); }
+                 else { Debug.LogWarning($"Not enough Fiber. Required: {amount}, Have: {fiberCount}"); return false; }
+                 break;
+            // --------------------------
              default:
                  Debug.LogWarning($"UseResource: Unknown resource type '{resourceType}'");
                  return false;
          }
 
-         if (changed) {
-              OnInventoryChanged?.Invoke();
-         }
+         if (changed) { OnInventoryChanged?.Invoke(); }
          return true;
     }
 
@@ -119,21 +123,17 @@ public class PlayerInventory : MonoBehaviour
          if (amount <= 0) return true;
          switch (resourceType)
          {
-             case "Seed":
-                 return seedCount >= amount;
-             case "ChitinScrap":
-                 return chitinCount >= amount;
-            // --- 물 보유량 확인 로직 ---
-            case "Water":
-                 return waterCount >= amount;
-            // ---------------------
-             default:
-                 return false;
+             case "Seed": return seedCount >= amount;
+             case "ChitinScrap": return chitinCount >= amount;
+             case "Water": return waterCount >= amount;
+             // --- 새로운 자원 보유량 확인 ---
+             case "Wood": return woodCount >= amount;
+             case "Stone": return stoneCount >= amount;
+             case "Fiber": return fiberCount >= amount;
+             // ---------------------------
+             default: return false;
          }
     }
-    /// <summary>
-    /// [호환성 유지] 씨앗이 충분히 있는지 확인합니다. PlantingManager에서 현재 사용 중.
-    /// </summary>
     public bool HasEnoughSeeds(int amount)
     {
         // 내부적으로 HasEnoughResource 함수 호출
